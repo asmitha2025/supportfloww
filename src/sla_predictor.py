@@ -34,30 +34,7 @@ class SLABreachPredictor:
                 "Run train_sla.py to generate it. Using heuristic fallback."
             )
 
-    def _train_synthetic(self):
-        np.random.seed(42)
-        n = 15000
-        tc = np.random.uniform(3.0, 18.0, n)
-        qd = np.random.poisson(12, n)
-        ct = np.random.choice([1,2,3,4], n, p=[0.15,0.30,0.35,0.20])
-        hr = np.random.randint(0, 24, n)
-        dw = np.random.randint(0, 7, n)
-        ah = np.random.exponential(4.0, n).clip(0.5, 48.0)
-        se = np.random.uniform(-1.0, 1.0, n)
-        ri = np.random.binomial(1, 0.25, n)
-        eb = np.random.binomial(1, 0.15, n)
-        X = np.column_stack([tc, qd, ct, hr, dw, ah, se, ri, eb])
-        logit = (0.08*tc + 0.12*qd - 0.3*(ct-2.5) + 0.05*np.abs(hr-12)
-                 + 0.15*(dw>=5).astype(float) + 0.10*ah - 0.5*se
-                 + 0.8*ri + 0.6*eb + np.random.normal(0,1.0,n))
-        y = (1.0/(1.0+np.exp(-logit+2.0)) > 0.5).astype(int)
-        dtrain = xgb.DMatrix(X, label=y, feature_names=FEATURE_NAMES)
-        params = {'objective':'binary:logistic','eval_metric':'auc',
-                  'max_depth':6,'eta':0.1,'subsample':0.8,'colsample_bytree':0.8,'seed':42}
-        self.model = xgb.train(params, dtrain, num_boost_round=200)
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-        self.model.save_model(self.model_path)
-        logger.info(f"SLA model saved to {self.model_path}")
+
 
     def predict(self, features: dict) -> float:
         if self.model and HAS_XGBOOST:
