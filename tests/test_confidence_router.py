@@ -40,6 +40,11 @@ def test_batch_route():
     router = ConfidenceGatedRouter()
     results = router.batch_route(["Ticket 1", "Ticket 2"], n_passes=3)
     assert len(results) == 2
+    for result in results:
+        assert result['action'] in ('route', 'clarify', 'escalate')
+        assert 'confidence' in result
+        assert 'all_probs' in result
+        assert abs(sum(result['all_probs'].values()) - 1.0) < 0.01
 
 if __name__ == '__main__':
     test_router_init()

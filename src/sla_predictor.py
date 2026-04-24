@@ -25,12 +25,14 @@ class SLABreachPredictor:
     def __init__(self, model_path='models/sla_predictor/sla_xgb.json'):
         self.model = None
         self.model_path = model_path
-        if HAS_XGBOOST:
-            if os.path.exists(model_path):
-                self.model = xgb.Booster()
-                self.model.load_model(model_path)
-            else:
-                self._train_synthetic()
+        if HAS_XGBOOST and os.path.exists(model_path):
+            self.model = xgb.Booster()
+            self.model.load_model(model_path)
+        elif HAS_XGBOOST:
+            logger.warning(
+                f"Model not found at {model_path}. "
+                "Run train_sla.py to generate it. Using heuristic fallback."
+            )
 
     def _train_synthetic(self):
         np.random.seed(42)

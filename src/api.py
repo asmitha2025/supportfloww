@@ -138,7 +138,7 @@ def route_ticket(req: TicketRequest):
         'customer_tier': 3,
         'hour_of_day': datetime.now().hour,
         'day_of_week': datetime.now().weekday(),
-        'similar_ticket_avg_hrs': 4.5,
+        'similar_ticket_avg_hrs': features.get('similar_ticket_avg_hrs', 4.5),
         'sentiment_score': features['sentiment_score'],
         'repeat_issue': 0,
         'escalated_before': 0,

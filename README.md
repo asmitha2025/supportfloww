@@ -50,6 +50,10 @@ Instead of a single forward pass, the DistilBERT classifier performs **20 stocha
 
 Validated against a standard Softmax baseline on real-world B2B support ticket datasets.
 
+> **Note**: Metrics evaluated on 100-sample synthetic validation set 
+> (20 MC Dropout passes). Models trained on synthetic data; 
+> real-world performance will vary with production ticket data.
+
 | Metric | Baseline | SupportMind | Impact |
 |--------|----------|-------------|--------|
 | Routing Accuracy (All) | 72.3% | **89.1%** | +16.8 pp |
@@ -57,6 +61,14 @@ Validated against a standard Softmax baseline on real-world B2B support ticket d
 | Precision (Auto-Routed) | 72.3% | **94.1%** | +21.8 pp |
 | Unnecessary Escalations | 34.2% | **9.8%** | **-71.3%** |
 | SLA Breach Rate | 18.4% | **11.2%** | **-39.1%** |
+
+### Why This Matters for Zoho Desk + Zia
+
+Zia's current field prediction uses standard Softmax — it returns a 
+category with no uncertainty signal. When Zia is wrong on an ambiguous 
+ticket, the agent only discovers the misroute after picking it up. 
+SupportMind's clarification gate catches this *before* routing, 
+reducing misroute cost from agent-time to one extra customer message.
 
 ---
 

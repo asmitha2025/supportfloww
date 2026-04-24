@@ -15,7 +15,7 @@ except ImportError:
     HAS_VADER = False
 
 COMPETITOR_PATTERNS = [
-    r'switch(?:ing)? to', r'moving to', r'looking at \w+',
+    r'switch(?:ing)? to', r'moving to', r'looking at (?:alternatives?|competitors?|other\s+(?:tools?|platforms?|solutions?|vendors?))',
     r'competitor', r'alternative', r'another (?:tool|platform|solution)',
     r'better option', r'other providers',
 ]
