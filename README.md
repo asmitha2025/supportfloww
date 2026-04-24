@@ -84,8 +84,8 @@ Follow these steps to set up the engine locally for development or demonstration
 ### 2. Clone and Install
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/supportmind.git
-cd supportmind
+git clone https://github.com/asmitha2025/supportfloww.git
+cd supportfloww
 
 # Create and activate a virtual environment
 python -m venv venv
