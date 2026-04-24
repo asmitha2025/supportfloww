@@ -1,0 +1,27 @@
+# SupportMind v1.0 — Requirements
+# Core ML
+transformers==4.40.0
+torch==2.3.0
+datasets==2.19.0
+scikit-learn==1.5.0
+xgboost==2.0.3
+onnxruntime==1.18.0
+
+# NLP Tools
+vaderSentiment==3.3.2
+scipy==1.13.0
+numpy==1.26.4
+pandas==2.2.2
+
+# API & Serving
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==2.7.1
+
+# Dashboard
+streamlit==1.36.0
+plotly==5.22.0
+
+# Testing
+pytest==8.2.2
+httpx==0.27.0

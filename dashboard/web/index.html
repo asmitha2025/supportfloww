@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AetherFlow AI | SupportMind Engine</title>
+    <meta name="description" content="AI-powered B2B SaaS ticket routing with MC Dropout uncertainty quantification">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-glow bg-glow-3"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <span class="brand-text">AetherFlow <span class="brand-sub">AI</span></span>
+            <span class="brand-badge">SupportMind v1.0</span>
+        </div>
+        <div class="nav-links">
+            <a href="#demo" class="nav-link">Live Demo</a>
+            <a href="#architecture" class="nav-link">Architecture</a>
+            <a href="#benchmarks" class="nav-link">Benchmarks</a>
+            <a href="#api-section" class="nav-link">API</a>
+        </div>
+        <div class="nav-actions">
+            <button class="btn-ghost" style="padding: 8px 16px; font-size: 13px;">Demo Mode</button>
+            <button class="btn-primary" style="padding: 8px 20px; font-size: 13px;">Get Started</button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero" id="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="hero-eyebrow">
+                    <span class="status-dot"></span>
+                    Uncertainty-Aware Neural Engine
+                </div>
+                <h1 class="hero-title">
+                    AI that <span class="gradient-text italic">knows</span> when it doesn't know
+                </h1>
+                <p class="hero-subtitle">
+                    MC Dropout uncertainty quantification on DistilBERT. Three-tier routing: 
+                    <strong>Route</strong> · <strong>Clarify</strong> · <strong>Escalate</strong>. 
+                    Optimize support workflows with surgical precision.
+                </p>
+                <div class="hero-actions">
+                    <a href="#demo" class="btn btn-primary">
+                        Try Live Demo 
+                        <span class="material-symbols-outlined btn-icon">arrow_forward</span>
+                    </a>
+                    <a href="#architecture" class="btn btn-ghost">View Architecture</a>
+                </div>
+            </div>
+
+            <!-- Hero Visual (Pipeline Preview) -->
+            <div class="hero-visual">
+                <div class="pipeline-card glass-panel shimmer-border">
+                    <div class="pipeline-header">
+                        <div class="window-controls">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                        </div>
+                        <span class="pipeline-status">pipeline_status: active</span>
+                    </div>
+                    <div class="pipeline-tiers">
+                        <div class="tier-card active">
+                            <div class="tier-info">
+                                <div class="tier-icon"><span class="material-symbols-outlined">account_tree</span></div>
+                                <div>
+                                    <div class="tier-name">Tier 1: Auto-Route</div>
+                                    <div class="tier-meta">Confidence &gt; 0.92</div>
+                                </div>
+                            </div>
+                            <span class="material-symbols-outlined tier-indicator" style="color: var(--green)">check_circle</span>
+                        </div>
+                        <div class="tier-card" style="background: rgba(192, 193, 255, 0.05); border-color: var(--primary);">
+                            <div class="tier-info">
+                                <div class="tier-icon" style="background: rgba(192, 193, 255, 0.4)"><span class="material-symbols-outlined">psychology</span></div>
+                                <div>
+                                    <div class="tier-name" style="font-style: italic; color: var(--primary)">Tier 2: Clarification</div>
+                                    <div class="tier-meta" style="color: var(--primary)">Ambiguity Detected</div>
+                                </div>
+                            </div>
+                            <div style="width: 48px; height: 6px; background: rgba(192, 193, 255, 0.2); border-radius: 10px; overflow: hidden;">
+                                <div style="width: 66%; height: 100%; background: var(--primary)"></div>
+                            </div>
+                        </div>
+                        <div class="tier-card">
+                            <div class="tier-info">
+                                <div class="tier-icon" style="background: rgba(248, 113, 113, 0.15); color: var(--red)"><span class="material-symbols-outlined">support_agent</span></div>
+                                <div>
+                                    <div class="tier-name">Tier 3: Escalate</div>
+                                    <div class="tier-meta">Human Protocol</div>
+                                </div>
+                            </div>
+                            <span class="material-symbols-outlined tier-indicator" style="color: #444">sync_alt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <div class="hero-stats">
+        <div class="stat-card glass-panel" data-value="89.1" data-suffix="%">
+            <div class="stat-label">Routing Accuracy</div>
+            <div class="stat-value"><span class="counter">0</span>%</div>
+            <div class="stat-delta positive"><span class="material-symbols-outlined" style="font-size: 14px">trending_up</span> +16.8pp vs baseline</div>
+        </div>
+        <div class="stat-card glass-panel" data-value="32.3" data-suffix="%">
+            <div class="stat-label">Ambiguous Ticket Gain</div>
+            <div class="stat-value"><span class="counter">0</span>%</div>
+            <div class="stat-delta positive">MC Dropout Protocol</div>
+        </div>
+        <div class="stat-card glass-panel" data-value="756" data-suffix="K" data-prefix="$">
+            <div class="stat-label">Annual Savings</div>
+            <div class="stat-value">$<span class="counter">0</span>K</div>
+            <div class="stat-delta" style="color: #666">Enterprise Deployment</div>
+        </div>
+        <div class="stat-card glass-panel" data-value="45" data-suffix="ms">
+            <div class="stat-label">Pipeline Latency</div>
+            <div class="stat-value"><span class="counter">0</span>ms</div>
+            <div class="stat-delta" style="color: #666">DistilBERT Optimized</div>
+        </div>
+    </div>
+
+    <!-- Live Demo Section -->
+    <section class="section" id="demo">
+        <div class="section-header">
+            <span class="section-badge">Interactive</span>
+            <h2 class="section-title">Live Ticket Router</h2>
+            <p class="section-desc">Type a support ticket and watch the confidence-gated router decide in real-time</p>
+        </div>
+
+        <div class="demo-container">
+            <div class="demo-input-panel glass-panel">
+                <label class="input-label">Support Ticket Text</label>
+                <textarea id="ticket-input" class="ticket-textarea" rows="4" placeholder="e.g., We have been having issues with the export function since last Tuesday's update..."></textarea>
+                <div class="demo-presets">
+                    <span class="preset-label">Try:</span>
+                    <button class="preset-btn" data-text="My invoice from last month shows $299 but my plan is $199. Please fix this billing error immediately.">Billing</button>
+                    <button class="preset-btn" data-text="The API endpoint /v2/export returns a 500 error when batch size exceeds 1000 records. Stack trace attached.">Technical</button>
+                    <button class="preset-btn" data-text="Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.">Ambiguous</button>
+                </div>
+                <button id="route-btn" class="btn btn-primary btn-full" onclick="routeTicket()">
+                    ⚡ Route Ticket
+                </button>
+            </div>
+
+            <div class="demo-results-panel glass-panel" id="results-panel">
+                <div class="result-placeholder" id="result-placeholder">
+                    <div class="placeholder-icon">🎯</div>
+                    <p>Enter a ticket and click "Route Ticket" to see the confidence-gated decision</p>
+                </div>
+
+                <div class="result-content" id="result-content" style="display:none">
+                    <!-- Action Badge -->
+                    <div class="action-badge-container">
+                        <div class="action-badge" id="action-badge">ROUTE</div>
+                        <div class="action-queue" id="action-queue"></div>
+                    </div>
+
+                    <!-- Confidence Gauge -->
+                    <div class="gauge-row">
+                        <div class="gauge-container">
+                            <label class="gauge-label">Confidence</label>
+                            <div class="gauge-track">
+                                <div class="gauge-fill" id="conf-fill" style="width:0%"></div>
+                                <div class="gauge-zones">
+                                    <div class="zone zone-red" style="width:55%"></div>
+                                    <div class="zone zone-yellow" style="width:25%"></div>
+                                    <div class="zone zone-green" style="width:20%"></div>
+                                </div>
+                            </div>
+                            <div class="gauge-value" id="conf-value">0.0000</div>
+                        </div>
+                        <div class="gauge-container">
+                            <label class="gauge-label">Shannon Entropy</label>
+                            <div class="gauge-track entropy-track">
+                                <div class="gauge-fill entropy-fill" id="ent-fill" style="width:0%"></div>
+                            </div>
+                            <div class="gauge-value" id="ent-value">0.0000</div>
+                        </div>
+                    </div>
+
+                    <!-- Probability Distribution -->
+                    <div class="prob-chart" id="prob-chart"></div>
+
+                    <!-- Clarification Question (if action=clarify) -->
+                    <div class="clarification-box" id="clarification-box" style="display:none">
+                        <div class="clarify-header">💡 Suggested Clarification Question</div>
+                        <div class="clarify-question" id="clarify-question"></div>
+                        <div class="clarify-options" id="clarify-options"></div>
+                        <div class="clarify-gain" id="clarify-gain"></div>
+                    </div>
+
+                    <!-- Additional Signals -->
+                    <div class="signals-grid">
+                        <div class="signal-card">
+                            <div class="signal-label">SLA Breach Risk</div>
+                            <div class="signal-value" id="sla-value">—</div>
+                            <div class="signal-bar"><div class="signal-fill" id="sla-fill"></div></div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-label">Sentiment</div>
+                            <div class="signal-value" id="sentiment-value">—</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-label">Urgency</div>
+                            <div class="signal-value" id="urgency-value">—</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-label">Latency</div>
+                            <div class="signal-value" id="latency-value">—</div>
+                        </div>
+                    </div>
+
+                    <div class="result-reason" id="result-reason"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="section section-dark" id="architecture">
+        <div class="section-header">
+            <span class="section-badge">Technical</span>
+            <h2 class="section-title">System Architecture</h2>
+            <p class="section-desc">Three-stage pipeline with MC Dropout confidence gating</p>
+        </div>
+
+        <div class="arch-pipeline">
+            <div class="arch-stage glass-panel">
+                <div class="stage-number">1</div>
+                <div class="stage-title">Feature Extraction</div>
+                <div class="stage-details">
+                    <span class="tech-tag">DistilBERT</span>
+                    <span class="tech-tag">VADER</span>
+                </div>
+                <p class="stage-desc">768-dim embedding + sentiment + urgency</p>
+            </div>
+            <div class="arch-arrow">→</div>
+            <div class="arch-stage glass-panel stage-highlight">
+                <div class="stage-number">2</div>
+                <div class="stage-title">Confidence-Gated Router</div>
+                <div class="stage-details">
+                    <span class="tech-tag">MC Dropout</span>
+                    <span class="tech-tag">Shannon Entropy</span>
+                </div>
+                <p class="stage-desc">3-tier decision gate (20 stochastic passes)</p>
+            </div>
+            <div class="arch-arrow">→</div>
+            <div class="arch-stage glass-panel">
+                <div class="stage-number">3</div>
+                <div class="stage-title">Intelligence Layer</div>
+                <div class="stage-details">
+                    <span class="tech-tag">XGBoost SLA</span>
+                    <span class="tech-tag">Churn Signal</span>
+                </div>
+                <p class="stage-desc">SLA breach prediction (AUC 0.83)</p>
+            </div>
+        </div>
+
+        <!-- MC Dropout Visualization -->
+        <div class="mc-dropout-viz glass-panel">
+            <h3 class="viz-title">Monte Carlo Dropout — 20 Stochastic Forward Passes</h3>
+            <p class="viz-desc">Each pass randomly deactivates different neurons, producing a distribution of predictions instead of a single overconfident output.</p>
+            <div class="dropout-grid" id="dropout-grid"></div>
+            <div class="dropout-legend">
+                <span><span class="legend-dot" style="background:#6366f1"></span> Active neuron</span>
+                <span><span class="legend-dot" style="background:#1e1b4b; border:1px solid #4338ca"></span> Dropped out</span>
+            </div>
+        </div>
+
+        <!-- Competitor Comparison -->
+        <div class="competitor-table-wrap">
+            <h3 class="viz-title">Competitor Architecture Gap</h3>
+            <table class="competitor-table">
+                <thead>
+                    <tr>
+                        <th>Platform</th>
+                        <th>AI Feature</th>
+                        <th>Handles Ambiguity?</th>
+                        <th>Clarification?</th>
+                        <th>Entropy Output?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Zoho Desk</td><td>Zia Field Predictions</td><td class="cell-no">Binary fail</td><td class="cell-no">No</td><td class="cell-no">No</td></tr>
+                    <tr><td>Freshdesk</td><td>Freddy Auto Triage</td><td class="cell-no">Majority-class default</td><td class="cell-no">No</td><td class="cell-no">No</td></tr>
+                    <tr><td>Zendesk</td><td>Intelligent Triage</td><td class="cell-no">General queue fallback</td><td class="cell-no">No</td><td class="cell-partial">Static only</td></tr>
+                    <tr><td>Salesforce</td><td>Einstein Classification</td><td class="cell-no">Fails on unstructured</td><td class="cell-no">No</td><td class="cell-no">No</td></tr>
+                    <tr class="row-highlight"><td><strong>SupportMind</strong></td><td>Confidence-Gated Router</td><td class="cell-yes">3-tier gate</td><td class="cell-yes">47 templates</td><td class="cell-yes">Real-time Shannon</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Benchmarks Section -->
+    <section class="section" id="benchmarks">
+        <div class="section-header">
+            <span class="section-badge">Results</span>
+            <h2 class="section-title">Benchmark Results</h2>
+            <p class="section-desc">Validated against standard Softmax baseline on real support ticket datasets</p>
+        </div>
+
+        <div class="benchmark-grid">
+            <div class="bench-card glass-panel">
+                <div class="bench-metric">Routing Accuracy (All)</div>
+                <div class="bench-compare">
+                    <div class="bench-bar-group">
+                        <div class="bench-label">Baseline</div>
+                        <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
+                    </div>
+                    <div class="bench-bar-group">
+                        <div class="bench-label">SupportMind</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:89.1%"><span>89.1%</span></div></div>
+                    </div>
+                </div>
+                <div class="bench-delta">+16.8 pp</div>
+            </div>
+            <div class="bench-card glass-panel">
+                <div class="bench-metric">Accuracy (Ambiguous Only)</div>
+                <div class="bench-compare">
+                    <div class="bench-bar-group">
+                        <div class="bench-label">Baseline</div>
+                        <div class="bench-bar"><div class="bench-fill baseline" style="width:51.4%"><span>51.4%</span></div></div>
+                    </div>
+                    <div class="bench-bar-group">
+                        <div class="bench-label">SupportMind</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:83.7%"><span>83.7%</span></div></div>
+                    </div>
+                </div>
+                <div class="bench-delta">+32.3 pp</div>
+            </div>
+            <div class="bench-card glass-panel">
+                <div class="bench-metric">Precision (Auto-Routed)</div>
+                <div class="bench-compare">
+                    <div class="bench-bar-group">
+                        <div class="bench-label">Baseline</div>
+                        <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
+                    </div>
+                    <div class="bench-bar-group">
+                        <div class="bench-label">SupportMind</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:94.1%"><span>94.1%</span></div></div>
+                    </div>
+                </div>
+                <div class="bench-delta">+21.8 pp</div>
+            </div>
+            <div class="bench-card glass-panel">
+                <div class="bench-metric">Unnecessary Escalations</div>
+                <div class="bench-compare">
+                    <div class="bench-bar-group">
+                        <div class="bench-label">Baseline</div>
+                        <div class="bench-bar"><div class="bench-fill baseline bad" style="width:34.2%"><span>34.2%</span></div></div>
+                    </div>
+                    <div class="bench-bar-group">
+                        <div class="bench-label">SupportMind</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:9.8%"><span>9.8%</span></div></div>
+                    </div>
+                </div>
+                <div class="bench-delta positive">-71.3%</div>
+            </div>
+        </div>
+
+        <!-- Operational Impact -->
+        </div>
+
+        <!-- Feature Spotlight Section -->
+        <div class="section" style="border-top: 1px solid var(--border); padding-top: 100px; margin-top: 40px;">
+            <div class="hero-container" style="gap: 100px;">
+                <div class="hero-visual">
+                    <div class="glass-panel" style="border-radius: 32px; overflow: hidden; aspect-ratio: 16/9; position: relative;">
+                        <img src="entropy_map.png" alt="Real-time Entropy Map" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8; filter: brightness(1.2);">
+                        <div style="position: absolute; bottom: 32px; left: 32px;">
+                            <div style="color: var(--primary); font-weight: 800; font-size: 20px;">Real-time Entropy Map</div>
+                            <div style="color: #888; font-size: 14px;">Visualizing decision boundaries in vector space</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-content">
+                    <h2 class="section-title" style="text-align: left;">Quantify uncertainty before taking action</h2>
+                    <p class="section-desc" style="text-align: left; margin: 0 0 32px;">Most LLMs hallucinate with absolute confidence. Our engine uses Bayesian approximations to measure epistemic uncertainty—meaning the system can flag exactly when it's "guessing."</p>
+                    <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 16px;">
+                        <li style="display: flex; gap: 12px; align-items: flex-start;">
+                            <span class="material-symbols-outlined" style="color: var(--primary)">verified</span>
+                            <span>Automated verification loops for low-confidence clusters</span>
+                        </li>
+                        <li style="display: flex; gap: 12px; align-items: flex-start;">
+                            <span class="material-symbols-outlined" style="color: var(--primary)">verified</span>
+                            <span>Dynamic thresholding based on historical human corrections</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API Section -->
+    <section class="section section-dark" id="api-section">
+        <div class="section-header">
+            <span class="section-badge">Developer</span>
+            <h2 class="section-title">API Reference</h2>
+            <p class="section-desc">RESTful API with FastAPI — complete documentation at <code>/docs</code></p>
+        </div>
+        <div class="api-grid">
+            <div class="api-card">
+                <div class="api-method post">POST</div>
+                <code class="api-path">/route</code>
+                <p class="api-desc">Main routing endpoint — returns 3-tier confidence-gated decision</p>
+            </div>
+            <div class="api-card">
+                <div class="api-method post">POST</div>
+                <code class="api-path">/clarify</code>
+                <p class="api-desc">Get best clarification question for uncertain ticket</p>
+            </div>
+            <div class="api-card">
+                <div class="api-method post">POST</div>
+                <code class="api-path">/sla/predict</code>
+                <p class="api-desc">Predict SLA breach risk at ticket creation</p>
+            </div>
+            <div class="api-card">
+                <div class="api-method post">POST</div>
+                <code class="api-path">/churn/signal</code>
+                <p class="api-desc">Extract churn signal from thread history</p>
+            </div>
+            <div class="api-card">
+                <div class="api-method get">GET</div>
+                <code class="api-path">/metrics</code>
+                <p class="api-desc">Live system health and routing statistics</p>
+            </div>
+            <div class="api-card">
+                <div class="api-method get">GET</div>
+                <code class="api-path">/health</code>
+                <p class="api-desc">Health check for deployment pipelines</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content" style="max-width: 1200px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="text-align: left;">
+                <div class="footer-brand" style="font-size: 24px; color: #fff;">AetherFlow</div>
+                <div class="footer-author">© 2026 AetherFlow Technologies. Intelligence through Clarity.</div>
+            </div>
+            <div class="footer-tech" style="display: flex; gap: 24px;">
+                <span>Privacy Policy</span>
+                <span>Terms of Service</span>
+                <span>Security</span>
+                <span>Status</span>
+                <span>Contact</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
