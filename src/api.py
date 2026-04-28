@@ -4,6 +4,8 @@
 
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
 import time
 import logging
 from datetime import datetime
@@ -14,6 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
+from ticket_validator import TicketValidator
+
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -90,6 +94,15 @@ def get_features():
         _feature_ext = FeatureExtractor()
     return _feature_ext
 
+_validator = None
+
+def get_validator():
+    global _validator
+    if _validator is None:
+        _validator = TicketValidator()
+    return _validator
+
+
 
 # ── Request/Response Models ───────────────────────────────
 class TicketRequest(BaseModel):
@@ -123,12 +136,35 @@ def route_ticket(req: TicketRequest):
     start = time.time()
     _stats['total_requests'] += 1
 
+    # ── Validate input first ──────────────────────────
+    validator = get_validator()
+    validation = validator.validate(req.text)
+
+    if not validation['valid']:
+        return {
+            'action': 'invalid_input',
+            'error_type': validation['error_type'],
+            'response': validation['response'],
+            'confidence': 0.0,
+            'entropy': 0.0,
+            'top_category': None,
+            'all_probs': {},
+            'sla_breach_probability': 0.0,
+            'clarification': None,
+            'latency_ms': round((time.time() - start) * 1000, 1),
+            'customer_id': req.customer_id,
+        }
+
+    # Use cleaned text for ML pipeline
+    clean_text = validation['cleaned_text']
+
     router = get_router()
-    result = router.route(req.text)
+    result = router.route(clean_text)
 
     # Get features
     feat_ext = get_features()
-    features = feat_ext.extract(req.text)
+    features = feat_ext.extract(clean_text)
+
 
     # SLA prediction
     sla = get_sla()
@@ -157,7 +193,12 @@ def route_ticket(req: TicketRequest):
         import numpy as np
         clar = get_clarify()
         probs = np.array(list(result['all_probs'].values()))
-        clarification = clar.select_question(probs, result['top_two_classes'])
+        clarification = clar.select_question(
+            probs,
+            result['top_two_classes'],
+            ticket_text=clean_text
+        )
+
 
     elapsed = round((time.time() - start) * 1000, 1)
 
@@ -186,7 +227,11 @@ def get_clarification(req: ClarifyRequest):
         req.top_two_classes = result['top_two_classes']
 
     top_two = req.top_two_classes or ['billing', 'technical_support']
-    return clar.select_question(probs, top_two)
+    return clar.select_question(
+        probs,
+        top_two,
+        ticket_text=req.text
+    )
 
 
 @app.post('/sla/predict')
