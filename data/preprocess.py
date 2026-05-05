@@ -21,26 +21,12 @@ PROC_DIR = os.path.join(BASE_DIR, 'processed')
 
 
 def load_raw_tickets():
-    """Load tickets from raw CSV."""
-    tickets = []
-    csv_path = os.path.join(RAW_DIR, 'support_tickets.csv')
-    if not os.path.exists(csv_path):
-        print(f"⚠️  Raw data not found at {csv_path}")
-        print("   Generating synthetic training data instead...")
-        return generate_synthetic_data()
+    """Load tickets using high-quality synthetic generation (Bypassing corrupted Kaggle data)."""
+    print("Generating clean synthetic dataset (500 samples per category)...")
+    # 500 samples * 8 categories = 4000 high-quality, correctly labeled tickets
+    return generate_synthetic_data(missing_only=False, num_samples=500)
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            tickets.append({
-                'text': row['text'],
-                'label': CATEGORY_MAP.get(row['category'], 6),
-                'category': row['category'],
-            })
-    return tickets
-
-
-def generate_synthetic_data():
+def generate_synthetic_data(missing_only=False, num_samples=50):
     """Generate synthetic support tickets for training."""
     templates = {
         'billing': [
@@ -142,8 +128,13 @@ def generate_synthetic_data():
     }
 
     tickets = []
+    missing_cats = ['account_management', 'feature_request', 'compliance_legal', 'onboarding']
+    
     for category, tmpls in templates.items():
-        for i in range(50):  # 50 tickets per category = 400 total
+        if missing_only and category not in missing_cats:
+            continue
+            
+        for i in range(num_samples):
             tmpl = random.choice(tmpls)
             # Fill in template placeholders with realistic values
             text = tmpl.format(
@@ -203,7 +194,7 @@ def save_csv(tickets, filepath):
         writer = csv.DictWriter(f, fieldnames=['text', 'label', 'category'])
         writer.writeheader()
         writer.writerows(tickets)
-    print(f"  ✅ Saved {len(tickets)} rows → {filepath}")
+    print(f"   Saved {len(tickets)} rows -> {filepath}")
 
 
 def generate_sla_data():
@@ -218,7 +209,7 @@ def generate_sla_data():
         ct = int(np.random.choice([1, 2, 3, 4], p=[0.15, 0.30, 0.35, 0.20]))
         hr = int(np.random.randint(0, 24))
         dw = int(np.random.randint(0, 7))
-        ah = round(float(np.random.exponential(4.0).clip(0.5, 48.0)), 2)
+        ah = round(float(np.clip(np.random.exponential(4.0), 0.5, 48.0)), 2)
         se = round(np.random.uniform(-1.0, 1.0), 3)
         ri = int(np.random.binomial(1, 0.25))
         eb = int(np.random.binomial(1, 0.15))
@@ -238,7 +229,7 @@ def generate_sla_data():
         writer.writeheader()
         writer.writerows(rows)
     breach_count = sum(r['sla_breached'] for r in rows)
-    print(f"  ✅ SLA data: {n} rows ({breach_count} breaches, {n - breach_count} OK) → {filepath}")
+    print(f"   SLA data: {n} rows ({breach_count} breaches, {n - breach_count} OK) -> {filepath}")
 
 
 def main():
@@ -247,18 +238,18 @@ def main():
     print("=" * 60)
 
     # Load and process tickets
-    print("\n📂 Loading raw ticket data...")
+    print("\nLoading raw ticket data...")
     tickets = load_raw_tickets()
     print(f"   Loaded {len(tickets)} tickets across {len(set(t['category'] for t in tickets))} categories")
 
     # Category distribution
-    print("\n📊 Category distribution:")
+    print("\nCategory distribution:")
     for cat in CATEGORIES:
         count = sum(1 for t in tickets if t['category'] == cat)
         print(f"   {cat:25s} {count:4d} tickets")
 
     # Split
-    print("\n✂️  Splitting data (70/15/15)...")
+    print("\nSplitting data (70/15/15)...")
     train, val, test = split_data(tickets)
 
     save_csv(train, os.path.join(PROC_DIR, 'train.csv'))
@@ -266,14 +257,14 @@ def main():
     save_csv(test, os.path.join(PROC_DIR, 'test.csv'))
 
     # SLA data
-    print("\n🚨 Generating SLA breach training data...")
+    print("\nGenerating SLA breach training data...")
     try:
         generate_sla_data()
     except ImportError:
-        print("  ⚠️  numpy not installed — skipping SLA data generation")
+        print("  SLA data skipped (numpy missing)")
 
     print("\n" + "=" * 60)
-    print("✅ Preprocessing complete!")
+    print("Preprocessing complete!")
     print("=" * 60)
 
 
