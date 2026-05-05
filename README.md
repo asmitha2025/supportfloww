@@ -42,7 +42,11 @@ Instead of a single forward pass, the DistilBERT classifier performs **20 stocha
 
 ### Stage 3: The Intelligence Layer
 * **SLA Breach Predictor (XGBoost)**: Evaluates the extracted features against current queue depth and historical SLA data to predict the probability of missing SLA targets (AUC 0.83).
-* **Clarification Engine**: If ambiguity is detected, this engine calculates the Shannon entropy across predicted classes and selects the optimal clarifying question from a bank of 47 templates to maximize information gain.
+* **Clarification Engine (Hybrid Architecture)**: When the router enters the CLARIFY tier, the engine uses a two-layer approach:
+  1. **LLM Layer (Groq LLaMA3-8B)**: Generates a ticket-specific question referencing the customer's exact words. Runs in ~100ms via Groq's optimized inference.
+  2. **Template Layer (fallback)**: If LLM is unavailable, selects from 47 pre-built templates scored by expected Shannon entropy reduction (information gain).
+  
+  This design ensures the system never stops routing — LLM enhances quality when available, templates guarantee reliability always.
 
 ---
 

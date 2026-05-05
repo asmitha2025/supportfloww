@@ -6,9 +6,20 @@ import os
 import sys
 from dotenv import load_dotenv
 load_dotenv()
+
+# Aggressive memory and backend management
+os.environ['USE_TF'] = '0'
+os.environ['USE_JAX'] = '0'
+os.environ['USE_TORCH'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 import time
 import logging
+import gc
 from datetime import datetime
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +28,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from ticket_validator import TicketValidator
+from interpretability import SupportMindExplainer
+
 
 
 # Add project root to path
@@ -53,13 +66,27 @@ _stats = {
     'total_requests': 0, 'start_time': datetime.now().isoformat(),
 }
 
+@app.on_event("startup")
+def startup_event():
+    """Pre-load all ML models into memory on the main thread.
+    This prevents PyTorch segmentation faults and thread-lock issues
+    that happen when lazy-loading large models inside FastAPI worker threads.
+    """
+    logger.info("Initializing ML models on main thread to prevent segfaults...")
+    get_router()
+    get_clarify()
+    get_sla()
+    get_churn()
+    get_features()
+    get_validator()
+    get_explainer()
+    logger.info("All ML models loaded successfully.")
+
 def get_router():
     global _router
     if _router is None:
-        from confidence_router import ConfidenceGatedRouter
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        model_path = os.path.join(base, 'models', 'ticket_classifier')
-        _router = ConfidenceGatedRouter(model_path)
+        from ensemble_router import EnsembleRouter
+        _router = EnsembleRouter(device='cpu')
     return _router
 
 def get_clarify():
@@ -95,12 +122,25 @@ def get_features():
     return _feature_ext
 
 _validator = None
+_explainer = None
 
 def get_validator():
     global _validator
     if _validator is None:
         _validator = TicketValidator()
     return _validator
+
+def get_explainer():
+    global _explainer
+    if _explainer is None:
+        router = get_router()
+        # EnsembleRouter exposes .model and .tokenizer (None if BERT not loaded)
+        if router.model is not None:
+            _explainer = SupportMindExplainer(router.model, router.tokenizer, device='cpu')
+        else:
+            _explainer = None  # BERT not available; /explain will return 503
+    return _explainer
+
 
 
 
@@ -127,6 +167,11 @@ class ClarifyRequest(BaseModel):
     text: str
     current_probs: Optional[List[float]] = None
     top_two_classes: Optional[List[str]] = None
+
+class ExplainRequest(BaseModel):
+    text: str
+    target_class: Optional[str] = None
+
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -243,6 +288,27 @@ def predict_sla(req: SLARequest):
     return result
 
 
+@app.post('/explain')
+def explain_prediction(req: ExplainRequest):
+    """Generate SHAP word-level importance for a ticket."""
+    from ensemble_router import CATEGORY_REVERSE
+
+    explainer = get_explainer()
+    if explainer is None:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=503,
+            detail='SHAP explainer unavailable until DistilBERT training completes.'
+        )
+
+    target_idx = None
+    if req.target_class and req.target_class in CATEGORY_REVERSE:
+        target_idx = CATEGORY_REVERSE[req.target_class]
+
+    return explainer.explain(req.text, target_class_idx=target_idx)
+
+
+
 @app.post('/churn/signal')
 def churn_signal(req: ThreadRequest):
     """Extract churn signal from thread history."""
@@ -254,30 +320,40 @@ def churn_signal(req: ThreadRequest):
 def get_metrics():
     """Live system health and routing statistics."""
     total = _stats['total_requests'] or 1
+    router = get_router()
+    bert_on = getattr(router, '_bert_available', False)
     return {
         'total_requests': _stats['total_requests'],
         'routing_stats': {
-            'routed': _stats['total_routed'],
+            'routed':    _stats['total_routed'],
             'clarified': _stats['total_clarified'],
             'escalated': _stats['total_escalated'],
         },
         'routing_distribution': {
-            'route_pct': round(_stats['total_routed'] / total * 100, 1),
+            'route_pct':   round(_stats['total_routed']    / total * 100, 1),
             'clarify_pct': round(_stats['total_clarified'] / total * 100, 1),
-            'escalate_pct': round(_stats['total_escalated'] / total * 100, 1),
+            'escalate_pct':round(_stats['total_escalated'] / total * 100, 1),
         },
         'start_time': _stats['start_time'],
-        'model': 'distilbert-base-uncased (MC Dropout)',
+        'model': (
+            f"ensemble: {router._bert_router.model.config.model_type}-finetuned + tfidf-lr (MC Dropout)"
+            if bert_on else
+            'ensemble: tfidf-lr baseline (GPU training in progress)'
+        ),
+        'bert_online': bert_on,
     }
 
 
 @app.get('/health')
 def health():
     """Health check for deployment pipelines."""
+    router = get_router()
+    bert_on = getattr(router, '_bert_available', False)
     return {
         'status': 'ok',
-        'model': 'distilbert-base-uncased-finetuned',
-        'version': '1.0.0',
+        'model': f"ensemble ({router._bert_router.model.config.model_type} + tfidf-lr)" if bert_on else 'ensemble (tfidf-lr only)',
+        'bert_online': bert_on,
+        'version': '2.0.0',
         'timestamp': datetime.now().isoformat(),
     }
 
@@ -294,5 +370,5 @@ if os.path.exists(dashboard_dir):
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run('api:app', host='0.0.0.0', port=7860, reload=True)
+    uvicorn.run('api:app', host='0.0.0.0', port=7860, reload=False)
 

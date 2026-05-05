@@ -542,4 +542,57 @@ body {
   border: 2px solid rgba(255,255,255,0.2); border-top-color: white;
   border-radius: 50%; animation: spin 0.6s linear infinite;
 }
+/* SHAP Interpretability */
+.explanation-box {
+  background: rgba(192, 193, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.4s ease;
+}
+.explain-header {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.explain-text {
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 2.2;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.shap-token {
+  padding: 2px 4px;
+  margin: 0 1px;
+  border-radius: 4px;
+  display: inline-block;
+  transition: all 0.3s;
+}
+.explain-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text3);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.highlight-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+.highlight-box.pos { background: rgba(74, 222, 128, 0.4); border: 1px solid var(--green); }
+.highlight-box.neg { background: rgba(248, 113, 113, 0.4); border: 1px solid var(--red); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
+

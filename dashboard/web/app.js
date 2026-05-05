@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initDropoutViz();
   initScrollAnimations();
   checkAPI();
+  updateLiveMetrics();
+  setInterval(updateLiveMetrics, 5000); // Update every 5 seconds
 });
 
 // ── Counter Animation ─────────────────────────────────
@@ -102,6 +104,25 @@ async function checkAPI() {
   }
 }
 
+// ── Live Metrics ──────────────────────────────────────
+async function updateLiveMetrics() {
+  if (!apiOnline) return;
+  try {
+    const res = await fetch(`${API_BASE}/metrics`);
+    const data = await res.json();
+    
+    document.getElementById('live-model').textContent = data.model;
+    document.getElementById('live-total').textContent = data.total_requests;
+    
+    const dist = data.routing_distribution;
+    document.getElementById('dist-route').style.width = dist.route_pct + '%';
+    document.getElementById('dist-clarify').style.width = dist.clarify_pct + '%';
+    document.getElementById('dist-escalate').style.width = dist.escalate_pct + '%';
+  } catch (err) {
+    console.warn('Metrics update failed:', err);
+  }
+}
+
 // ── Route Ticket ──────────────────────────────────────
 async function routeTicket() {
   const text = document.getElementById('ticket-input').value.trim();
@@ -152,8 +173,12 @@ function displayResult(r) {
     document.querySelector('.gauge-row').style.display = 'none';
     document.getElementById('prob-chart').innerHTML = '';
     document.getElementById('clarification-box').style.display = 'none';
+    const explainBtn = document.getElementById('explain-btn');
+    if (explainBtn) explainBtn.style.display = 'none';
+    document.getElementById('explanation-box').style.display = 'none';
     return;
   }
+
 
   // Show gauges for valid input
   document.querySelector('.gauge-row').style.display = 'grid';
@@ -263,7 +288,95 @@ function displayResult(r) {
 
   // Reason
   document.getElementById('result-reason').textContent = r.reason || '';
+
+  // Show explain button for valid input
+  const explainBtn = document.getElementById('explain-btn');
+  if (explainBtn) {
+    explainBtn.style.display = 'flex';
+    explainBtn.dataset.text = document.getElementById('ticket-input').value;
+    explainBtn.dataset.category = r.top_category;
+  }
+  document.getElementById('explanation-box').style.display = 'none';
 }
+
+// ── Explain Decision (SHAP) ───────────────────────────
+async function explainDecision() {
+  const btn = document.getElementById('explain-btn');
+  const text = btn.dataset.text;
+  const targetClass = btn.dataset.category;
+  
+  btn.innerHTML = '<span class="spinner"></span> Analyzing tokens...';
+  btn.disabled = true;
+
+  try {
+    let result;
+    if (apiOnline) {
+      const res = await fetch(`${API_BASE}/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, target_class: targetClass }),
+      });
+      result = await res.json();
+    } else {
+      // Simulate SHAP for demo mode
+      result = simulateSHAP(text);
+    }
+
+    renderSHAP(result);
+  } catch (err) {
+    console.error('SHAP failed:', err);
+    renderSHAP(simulateSHAP(text));
+  }
+
+  btn.innerHTML = '<span class="material-symbols-outlined btn-icon">query_stats</span> Analyze Decision (SHAP)';
+  btn.disabled = false;
+}
+
+function renderSHAP(data) {
+  const box = document.getElementById('explanation-box');
+  const textEl = document.getElementById('explain-text');
+  box.style.display = 'block';
+  textEl.innerHTML = '';
+
+  if (data.error) {
+    textEl.textContent = 'Error generating explanation: ' + data.error;
+    return;
+  }
+
+  const tokens = data.tokens;
+  const values = data.values;
+
+  tokens.forEach((token, i) => {
+    const val = values[i];
+    const span = document.createElement('span');
+    span.className = 'shap-token';
+    span.textContent = token.replace('##', ''); // Simple handling for subwords
+    
+    // Normalize opacity based on value
+    const absVal = Math.abs(val);
+    const opacity = Math.min(absVal * 5, 0.8); // Scale for visibility
+    
+    if (val > 0) {
+      span.style.background = `rgba(74, 222, 128, ${opacity})`;
+      span.style.borderBottom = `2px solid rgba(74, 222, 128, ${opacity + 0.2})`;
+    } else if (val < 0) {
+      span.style.background = `rgba(248, 113, 113, ${opacity})`;
+      span.style.borderBottom = `2px solid rgba(248, 113, 113, ${opacity + 0.2})`;
+    }
+
+    textEl.appendChild(span);
+    textEl.appendChild(document.createTextNode(' '));
+  });
+  
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function simulateSHAP(text) {
+  const tokens = text.split(/\s+/);
+  const values = tokens.map(() => (Math.random() - 0.4) * 0.2);
+  return { tokens, values };
+}
+
 
 // ── Seeded PRNG (deterministic per text) ──────────────
 function hashText(str) {

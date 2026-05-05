@@ -30,7 +30,7 @@ NON_LATIN_PATTERN = re.compile(
 
 # Gibberish detection
 # No vowels in long sequences = likely gibberish
-GIBBERISH_PATTERN = re.compile(r'[^aeiou\s]{6,}', re.IGNORECASE)
+GIBBERISH_PATTERN = re.compile(r'\b[^aeiou\s]{6,}\b', re.IGNORECASE)
 
 
 # Already resolved patterns

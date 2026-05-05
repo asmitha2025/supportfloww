@@ -68,7 +68,7 @@ if st.button("⚡ Route Ticket", type="primary", use_container_width=True):
                 cr.CLARIFY_THRESHOLD = clarify_thresh
                 cr.ENTROPY_MAX = entropy_max
 
-                router = ConfidenceGatedRouter()
+                router = ConfidenceGatedRouter(device='cpu')
                 result = router.route(ticket_text, n_passes=mc_passes)
 
                 # Display action

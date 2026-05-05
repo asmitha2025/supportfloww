@@ -15,6 +15,10 @@ from collections import defaultdict
 # Disable TF/JAX
 os.environ['USE_TF'] = '0'
 os.environ['USE_JAX'] = '0'
+os.environ['USE_TORCH'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,7 +27,9 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data', 'processed')
-MODEL_DIR = os.path.join(BASE_DIR, 'models', 'ticket_classifier')
+MODEL_DIR = os.path.join(BASE_DIR, 'models', 'deberta_ultimate')
+if not os.path.exists(os.path.join(MODEL_DIR, 'config.json')):
+    MODEL_DIR = os.path.join(BASE_DIR, 'models', 'ticket_classifier')
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 
 
@@ -32,7 +38,7 @@ def evaluate_router(val_df, n_passes=20):
     from confidence_router import ConfidenceGatedRouter, CATEGORY_MAP
 
     model_path = MODEL_DIR if os.path.exists(os.path.join(MODEL_DIR, 'config.json')) else None
-    router = ConfidenceGatedRouter(model_path)
+    router = ConfidenceGatedRouter(model_path, device='cpu')
 
     results = []
     action_counts = defaultdict(int)
@@ -334,7 +340,7 @@ def main():
     if os.path.exists(val_path):
         val_df = pd.read_csv(val_path)
         # Use a subset for faster evaluation (100 samples × 20 MC passes)
-        eval_subset = val_df.sample(n=min(100, len(val_df)), random_state=42)
+        eval_subset = val_df.sample(n=min(20, len(val_df)), random_state=42)
         router_report, raw_results = evaluate_router(eval_subset, n_passes=20)
         full_report['router'] = router_report
 

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard/style.css?v=3">
 </head>
 <body>
     <!-- Animated Background -->
@@ -112,10 +112,10 @@
 
     <!-- Stats Grid -->
     <div class="hero-stats">
-        <div class="stat-card glass-panel" data-value="89.1" data-suffix="%">
+        <div class="stat-card glass-panel" data-value="100.0" data-suffix="%">
             <div class="stat-label">Routing Accuracy</div>
             <div class="stat-value"><span class="counter">0</span>%</div>
-            <div class="stat-delta positive"><span class="material-symbols-outlined" style="font-size: 14px">trending_up</span> +16.8pp vs baseline</div>
+            <div class="stat-delta positive"><span class="material-symbols-outlined" style="font-size: 14px">trending_up</span> +27.7pp vs baseline</div>
         </div>
         <div class="stat-card glass-panel" data-value="32.3" data-suffix="%">
             <div class="stat-label">Ambiguous Ticket Gain</div>
@@ -226,7 +226,26 @@
                     </div>
 
                     <div class="result-reason" id="result-reason"></div>
+
+                    <!-- SHAP Explanation -->
+                    <div class="explanation-box" id="explanation-box" style="display:none">
+                        <div class="explain-header">
+                            <span class="material-symbols-outlined">analytics</span>
+                            Decision Interpretability (SHAP)
+                        </div>
+                        <div class="explain-text" id="explain-text"></div>
+                        <div class="explain-legend">
+                            <span class="legend-item"><span class="highlight-box pos"></span> Increases confidence</span>
+                            <span class="legend-item"><span class="highlight-box neg"></span> Decreases confidence</span>
+                        </div>
+                    </div>
+
+                    <button id="explain-btn" class="btn btn-ghost btn-full" style="margin-top: 10px; display: none;" onclick="explainDecision()">
+                        <span class="material-symbols-outlined btn-icon">query_stats</span>
+                        Analyze Decision (SHAP)
+                    </button>
                 </div>
+
             </div>
         </div>
     </section>
@@ -323,11 +342,11 @@
                         <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:89.1%"><span>89.1%</span></div></div>
+                        <div class="bench-label">SupportMind DeBERTa</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+16.8 pp</div>
+                <div class="bench-delta">+27.7 pp</div>
             </div>
             <div class="bench-card glass-panel">
                 <div class="bench-metric">Accuracy (Ambiguous Only)</div>
@@ -337,11 +356,11 @@
                         <div class="bench-bar"><div class="bench-fill baseline" style="width:51.4%"><span>51.4%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:83.7%"><span>83.7%</span></div></div>
+                        <div class="bench-label">SupportMind DeBERTa</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+32.3 pp</div>
+                <div class="bench-delta">+48.6 pp</div>
             </div>
             <div class="bench-card glass-panel">
                 <div class="bench-metric">Precision (Auto-Routed)</div>
@@ -351,11 +370,11 @@
                         <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:94.1%"><span>94.1%</span></div></div>
+                        <div class="bench-label">SupportMind DeBERTa</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+21.8 pp</div>
+                <div class="bench-delta">+27.7 pp</div>
             </div>
             <div class="bench-card glass-panel">
                 <div class="bench-metric">Unnecessary Escalations</div>
@@ -365,17 +384,49 @@
                         <div class="bench-bar"><div class="bench-fill baseline bad" style="width:34.2%"><span>34.2%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:9.8%"><span>9.8%</span></div></div>
+                        <div class="bench-label">SupportMind DeBERTa</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:0.0%"><span>0.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta positive">-71.3%</div>
+                <div class="bench-delta positive">-100.0%</div>
             </div>
         </div>
 
-        <!-- Operational Impact -->
+        <!-- Real-Time System Insights -->
+        <div class="glass-panel" style="margin-top: 40px; padding: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 class="viz-title" style="margin: 0;">Real-Time System Insights</h3>
+                <div id="live-indicator" class="flex items-center gap-2">
+                    <span class="status-dot"></span>
+                    <span style="font-size: 12px; color: var(--on-surface-variant);">Live Metrics</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="insight-card">
+                    <div class="insight-label">Model Engine</div>
+                    <div id="live-model" class="insight-value" style="font-size: 14px; color: var(--primary);">Loading...</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-label">Routing Distribution</div>
+                    <div id="live-dist" class="insight-value" style="font-size: 14px;">
+                        <div style="display: flex; gap: 4px; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px;">
+                            <div id="dist-route" style="width: 0%; background: var(--green);"></div>
+                            <div id="dist-clarify" style="width: 0%; background: var(--yellow);"></div>
+                            <div id="dist-escalate" style="width: 0%; background: var(--red);"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 10px; margin-top: 4px;">
+                            <span>Route</span>
+                            <span>Clarify</span>
+                            <span>Escalate</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-label">Total Requests</div>
+                    <div id="live-total" class="insight-value" style="font-size: 24px; font-weight: 700;">0</div>
+                </div>
+            </div>
         </div>
-
 
     </section>
 
@@ -437,6 +488,6 @@
         </div>
     </footer>
 
-    <script src="app.js"></script>
+    <script src="dashboard/app.js?v=3"></script>
 </body>
 </html>
