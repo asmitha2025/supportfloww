@@ -150,12 +150,21 @@ class TicketRequest(BaseModel):
     customer_id: Optional[str] = None
 
 class SLARequest(BaseModel):
+    """
+    SLA breach prediction feature vector.
+
+    **Production requirement**: `similar_ticket_avg_hrs` must be populated
+    from a live historical data feed (e.g., a data warehouse query for the
+    mean resolution time of similar resolved tickets in the past 30 days).
+    The default value (4.5 hrs) is a static fallback for demonstration only
+    and will produce under-calibrated predictions in real deployments.
+    """
     text_complexity_score: float = 8.0
     agent_queue_depth: int = 10
     customer_tier: int = 3
     hour_of_day: int = 14
     day_of_week: int = 2
-    similar_ticket_avg_hrs: float = 4.5
+    similar_ticket_avg_hrs: float = 4.5  # ⚠️ Default fallback — must come from real historical feed in production
     sentiment_score: float = 0.0
     repeat_issue: int = 0
     escalated_before: int = 0
@@ -281,7 +290,14 @@ def get_clarification(req: ClarifyRequest):
 
 @app.post('/sla/predict')
 def predict_sla(req: SLARequest):
-    """Predict SLA breach risk at ticket creation."""
+    """
+    Predict SLA breach risk at ticket creation.
+
+    **Production note**: The `similar_ticket_avg_hrs` field defaults to 4.5 hrs
+    when omitted. In production, this value **must** be sourced from a real
+    historical data feed (e.g., average resolution time for similar resolved
+    tickets). Without it, breach probability estimates are not reliable.
+    """
     sla = get_sla()
     features = req.model_dump()
     result = sla.explain(features)

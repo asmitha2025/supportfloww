@@ -112,20 +112,20 @@
 
     <!-- Stats Grid -->
     <div class="hero-stats">
+        <div class="stat-card glass-panel" data-value="57.3" data-suffix="%">
+            <div class="stat-label">OOD Routing Accuracy</div>
+            <div class="stat-value"><span class="counter">0</span>%</div>
+            <div class="stat-delta positive"><span class="material-symbols-outlined" style="font-size: 14px">trending_up</span> 100% on auto-routed</div>
+        </div>
         <div class="stat-card glass-panel" data-value="100.0" data-suffix="%">
-            <div class="stat-label">Routing Accuracy</div>
+            <div class="stat-label">Auto-Route Precision</div>
             <div class="stat-value"><span class="counter">0</span>%</div>
-            <div class="stat-delta positive"><span class="material-symbols-outlined" style="font-size: 14px">trending_up</span> +27.7pp vs baseline</div>
+            <div class="stat-delta positive">Zero false auto-routes</div>
         </div>
-        <div class="stat-card glass-panel" data-value="32.3" data-suffix="%">
-            <div class="stat-label">Ambiguous Ticket Gain</div>
+        <div class="stat-card glass-panel" data-value="97.9" data-suffix="%">
+            <div class="stat-label">Safe Failure Rate</div>
             <div class="stat-value"><span class="counter">0</span>%</div>
-            <div class="stat-delta positive">MC Dropout Protocol</div>
-        </div>
-        <div class="stat-card glass-panel" data-value="756" data-suffix="K" data-prefix="$">
-            <div class="stat-label">Annual Savings</div>
-            <div class="stat-value">$<span class="counter">0</span>K</div>
-            <div class="stat-delta" style="color: #666">Enterprise Deployment</div>
+            <div class="stat-delta positive">Flagged for human review</div>
         </div>
         <div class="stat-card glass-panel" data-value="45" data-suffix="ms">
             <div class="stat-label">Pipeline Latency</div>
@@ -329,66 +329,76 @@
     <section class="section" id="benchmarks">
         <div class="section-header">
             <span class="section-badge">Results</span>
-            <h2 class="section-title">Benchmark Results</h2>
-            <p class="section-desc">Validated against standard Softmax baseline on real support ticket datasets</p>
+            <h2 class="section-title">Honest Dual-Evaluation</h2>
+            <p class="section-desc">Transparent benchmarks: in-distribution synthetic data + out-of-distribution hand-crafted tickets</p>
+        </div>
+
+        <!-- OOD Transparency Note -->
+        <div class="glass-panel" style="margin-bottom: 32px; padding: 20px 24px; border-left: 3px solid var(--yellow);">
+            <div style="font-size: 13px; color: var(--on-surface-variant); line-height: 1.7;">
+                <strong style="color: var(--yellow);">Why two sets of numbers?</strong>
+                The <strong>In-Distribution</strong> set (100% accuracy) confirms the model learned its training distribution.
+                The <strong>Out-of-Distribution</strong> set (57.3% accuracy on 96 hand-crafted tickets) is the honest estimate of real-world generalization.
+                On OOD data, the model auto-routed only <strong>2.1%</strong> of tickets (with 100% precision) and safely flagged the rest for human review.
+            </div>
         </div>
 
         <div class="benchmark-grid">
             <div class="bench-card glass-panel">
-                <div class="bench-metric">Routing Accuracy (All)</div>
+                <div class="bench-metric">Overall Routing Accuracy</div>
                 <div class="bench-compare">
                     <div class="bench-bar-group">
-                        <div class="bench-label">Baseline</div>
-                        <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
+                        <div class="bench-label">In-Distribution (synthetic)</div>
+                        <div class="bench-bar"><div class="bench-fill baseline" style="width:100%"><span>100.0%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind DeBERTa</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
+                        <div class="bench-label">Out-of-Distribution (OOD)</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:57.3%"><span>57.3%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+27.7 pp</div>
+                <div class="bench-delta" style="color: var(--on-surface-variant); font-size: 11px;">OOD = honest generalization estimate</div>
             </div>
             <div class="bench-card glass-panel">
-                <div class="bench-metric">Accuracy (Ambiguous Only)</div>
+                <div class="bench-metric">Precision on Auto-Routed</div>
                 <div class="bench-compare">
                     <div class="bench-bar-group">
-                        <div class="bench-label">Baseline</div>
-                        <div class="bench-bar"><div class="bench-fill baseline" style="width:51.4%"><span>51.4%</span></div></div>
+                        <div class="bench-label">In-Distribution</div>
+                        <div class="bench-bar"><div class="bench-fill baseline" style="width:100%"><span>100.0%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind DeBERTa</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
+                        <div class="bench-label">Out-of-Distribution</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:100%"><span>100.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+48.6 pp</div>
+                <div class="bench-delta positive">Zero false auto-routes on novel data</div>
             </div>
             <div class="bench-card glass-panel">
-                <div class="bench-metric">Precision (Auto-Routed)</div>
+                <div class="bench-metric">OOD Routing Gate Distribution</div>
                 <div class="bench-compare">
                     <div class="bench-bar-group">
-                        <div class="bench-label">Baseline</div>
-                        <div class="bench-bar"><div class="bench-fill baseline" style="width:72.3%"><span>72.3%</span></div></div>
+                        <div class="bench-label" style="color: var(--green)">Auto-Routed (safe)</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:2.1%; min-width: 32px;"><span>2.1%</span></div></div>
                     </div>
                     <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind DeBERTa</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:100.0%"><span>100.0%</span></div></div>
+                        <div class="bench-label" style="color: var(--yellow)">Clarify (flagged)</div>
+                        <div class="bench-bar"><div class="bench-fill" style="width:51%; background: var(--yellow);"><span>51.0%</span></div></div>
+                    </div>
+                    <div class="bench-bar-group">
+                        <div class="bench-label" style="color: var(--red)">Escalated (flagged)</div>
+                        <div class="bench-bar"><div class="bench-fill" style="width:46.9%; background: var(--red);"><span>46.9%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta">+27.7 pp</div>
+                <div class="bench-delta positive">97.9% safely flagged for human review</div>
             </div>
             <div class="bench-card glass-panel">
-                <div class="bench-metric">Unnecessary Escalations</div>
+                <div class="bench-metric">OOD Ambiguous Accuracy</div>
                 <div class="bench-compare">
                     <div class="bench-bar-group">
-                        <div class="bench-label">Baseline</div>
-                        <div class="bench-bar"><div class="bench-fill baseline bad" style="width:34.2%"><span>34.2%</span></div></div>
-                    </div>
-                    <div class="bench-bar-group">
-                        <div class="bench-label">SupportMind DeBERTa</div>
-                        <div class="bench-bar"><div class="bench-fill ours" style="width:0.0%"><span>0.0%</span></div></div>
+                        <div class="bench-label">Hand-crafted ambiguous tickets</div>
+                        <div class="bench-bar"><div class="bench-fill ours" style="width:30%"><span>30.0%</span></div></div>
                     </div>
                 </div>
-                <div class="bench-delta positive">-100.0%</div>
+                <div class="bench-delta" style="color: var(--on-surface-variant); font-size: 11px;">Model correctly defers these to clarification</div>
             </div>
         </div>
 
