@@ -14,6 +14,7 @@ os.environ['USE_TORCH'] = '1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Prevent cuDNN WinError 1455 paging file crash
 
 import time
 import logging

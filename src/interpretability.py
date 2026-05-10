@@ -84,8 +84,9 @@ class SupportMindExplainer:
         """
         try:
             # Generate SHAP values
-            # This can be slow for long texts, but for tickets (~128 tokens) it's manageable
-            shap_values = self.explainer([text])
+            # This can be slow for long texts, but for tickets (~128 tokens) it's manageable.
+            # Capped max_evals to 500 to ensure fast response times during demos.
+            shap_values = self.explainer([text], max_evals=500)
             
             # If target_class_idx is not provided, use the one with highest mean SHAP value
             if target_class_idx is None:

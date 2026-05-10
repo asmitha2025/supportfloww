@@ -6,6 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green.svg)](https://fastapi.tiangolo.com)
 [![Transformers](https://img.shields.io/badge/HuggingFace-Transformers-orange.svg)](https://huggingface.co/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI Status](https://github.com/asmitha2025/supportfloww/actions/workflows/ci.yml/badge.svg)](https://github.com/asmitha2025/supportfloww/actions)
 
 > *"B2B SaaS support teams don't lose customers because agents are slow. They lose them because AI acts with false confidence on ambiguous tickets — and nobody in the stack knows it happened."*
 
@@ -119,9 +120,10 @@ If you wish to retrain the models from scratch using your own datasets:
 1. **Prepare Data**: Place your raw ticket data in `data/raw/`.
 2. **Train Router**: 
    ```bash
-   python src/train_router.py
+   python src/train_baseline.py  # Trains the fallback TF-IDF + Logistic Regression model
+   python src/train_router.py    # Trains the DistilBERT sequence classifier
    ```
-   *This trains the DistilBERT sequence classifier and saves it to `models/ticket_classifier/`.*
+   *These scripts train the routing models and save them to `models/ticket_classifier/`.*
 3. **Train SLA Predictor**:
    ```bash
    python src/train_sla.py
