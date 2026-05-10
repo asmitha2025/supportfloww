@@ -170,7 +170,7 @@
                         <div class="action-queue" id="action-queue"></div>
                     </div>
 
-                    <!-- Confidence Gauge -->
+                    <!-- Confidence & Margin & Entropy Gauges -->
                     <div class="gauge-row">
                         <div class="gauge-container">
                             <label class="gauge-label">Confidence</label>
@@ -183,6 +183,13 @@
                                 </div>
                             </div>
                             <div class="gauge-value" id="conf-value">0.0000</div>
+                        </div>
+                        <div class="gauge-container">
+                            <label class="gauge-label">Top-2 Margin</label>
+                            <div class="gauge-track margin-track">
+                                <div class="gauge-fill margin-fill" id="margin-fill" style="width:0%; background: linear-gradient(90deg, var(--accent), var(--primary));"></div>
+                            </div>
+                            <div class="gauge-value" id="margin-value">0.0000</div>
                         </div>
                         <div class="gauge-container">
                             <label class="gauge-label">Shannon Entropy</label>

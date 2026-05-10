@@ -85,9 +85,16 @@ class EnsembleRouter:
             self._warmup_bert()
         self._load_sklearn()
 
+        try:
+            from historical_memory import HistoricalMemoryLayer
+            self._memory_layer = HistoricalMemoryLayer()
+        except Exception as e:
+            logger.warning(f"[EnsembleRouter] Could not load Historical Memory Layer: {e}")
+            self._memory_layer = None
+
         logger.info(
             f"[EnsembleRouter] BERT={'ON' if self._bert_available else 'OFF (fallback)'} | "
-            f"sklearn=ON | weights=({BERT_W}/{SKLEARN_W})"
+            f"sklearn=ON | weights=({BERT_W}/{SKLEARN_W}) | memory={'ON' if getattr(self, '_memory_layer', None) and self._memory_layer.is_ready else 'OFF'}"
         )
 
     def _warmup_bert(self):
@@ -227,15 +234,45 @@ class EnsembleRouter:
             }
         }
 
-        if confidence >= ROUTE_THRESHOLD and entropy <= ENTROPY_MAX:
-            return {**base, 'action': 'route', 'queue': category,
-                    'reason': f'Ensemble high confidence ({confidence:.2%}), low entropy ({entropy:.3f})'}
-        elif confidence >= CLARIFY_THRESHOLD:
-            return {**base, 'action': 'clarify',
-                    'reason': f'Ensemble medium confidence ({confidence:.2%}) — clarify {top_two[0]} vs {top_two[1]}'}
+        top1_score = ranking[0][1]
+        top2_score = ranking[1][1]
+        margin = top1_score - top2_score
+        
+        hist_boost = 0.0
+        if getattr(self, '_memory_layer', None) and self._memory_layer.is_ready:
+            hist_boost = self._memory_layer.compute_historical_boost(ticket_text, category)
+            base['historical_boost'] = hist_boost
+
+        base['margin'] = round(margin, 4)
+        base['confidence'] = round(confidence, 4)
+
+        critical_labels = ['compliance_legal', 'account_management']
+        
+        effective_conf = confidence + hist_boost
+
+        if category in critical_labels:
+            if effective_conf >= 0.90 and margin >= 0.35 and entropy < 0.60:
+                action = 'route'
+                reason = f'• Safe to auto-route sensitive intent<br>• Confidence: {confidence:.2%}<br>• Margin: {margin:.2f}'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span>'
+            else:
+                action = 'escalate'
+                reason = f'• Escalated sensitive intent ({category})<br>• Strict confidence/margin threshold not met'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span> (Insufficient)'
         else:
-            return {**base, 'action': 'escalate',
-                    'reason': f'Ensemble low confidence ({confidence:.2%}) — human triage needed'}
+            if effective_conf >= 0.85 and margin >= 0.25 and entropy < 0.70:
+                action = 'route'
+                reason = f'• Strong dominant intent<br>• Confidence: {confidence:.2%}<br>• Margin: {margin:.2f}<br>• Safe to auto-route'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span>'
+            elif effective_conf >= 0.60 and entropy < 1.05:
+                action = 'clarify'
+                reason = f'• Medium ambiguity detected<br>• Clarification needed between {top_two[0]} and {top_two[1]}<br>• Margin: {margin:.2f}'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span> (Insufficient for auto-route)'
+            else:
+                action = 'escalate'
+                reason = f'• High ambiguity / Low confidence ({confidence:.2%})<br>• Multiple overlapping intents detected<br>• Human triage needed'
+
+        return {**base, 'action': action, 'queue': category if action == 'route' else None, 'reason': reason}
 
     def batch_route(self, tickets: list, n_passes: int = MC_PASSES) -> list:
         return [self.route(t, n_passes) for t in tickets]

@@ -335,7 +335,7 @@ body {
 .action-queue { font-size: 13px; color: var(--text2); margin-top: 8px; }
 
 /* Gauges */
-.gauge-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.gauge-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .gauge-container { position: relative; }
 .gauge-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; display: block; }
 .gauge-track {

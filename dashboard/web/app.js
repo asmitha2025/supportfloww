@@ -1,7 +1,7 @@
 // SupportMind Dashboard — app.js
 // Interactive demo with real API calls (falls back to simulation if API unavailable)
 
-const API_BASE = 'http://localhost:7860';
+const API_BASE = 'http://localhost:7861';
 let apiOnline = false;
 
 // Category colors
@@ -144,10 +144,10 @@ async function routeTicket() {
     } else {
       result = simulateRouting(text);
     }
-    displayResult(result);
+    displayResult(result, text);
   } catch (err) {
     result = simulateRouting(text);
-    displayResult(result);
+    displayResult(result, text);
   }
 
   btn.innerHTML = '<span class="btn-icon">⚡</span> Route Ticket';
@@ -155,7 +155,7 @@ async function routeTicket() {
 }
 
 // ── Display Result ────────────────────────────────────
-function displayResult(r) {
+function displayResult(r, routedText) {
   // Handle edge cases
   if (r.action === 'invalid_input') {
     document.getElementById('result-placeholder').style.display = 'none';
@@ -203,6 +203,9 @@ function displayResult(r) {
   const entPct = Math.min((r.entropy / maxEnt) * 100, 100);
   document.getElementById('ent-fill').style.width = entPct + '%';
   document.getElementById('ent-value').textContent = r.entropy.toFixed(4);
+  if (r.margin !== undefined && document.getElementById('margin-value')) {
+    document.getElementById('margin-value').textContent = r.margin.toFixed(4);
+  }
 
 
   // Prob chart
@@ -281,19 +284,35 @@ function displayResult(r) {
   const sent = feat.sentiment_score;
   document.getElementById('sentiment-value').textContent =
     sent !== undefined ? (sent > 0.2 ? '😊 ' : sent < -0.2 ? '😤 ' : '😐 ') + sent.toFixed(2) : '—';
-  document.getElementById('urgency-value').textContent =
-    feat.urgency_flags ? (feat.urgency_flags.length > 0 ? '🔴 ' + feat.urgency_flags.length + ' flags' : '🟢 Normal') : '—';
+  
+  const isUrgent = feat.urgency_flags && feat.urgency_flags.length > 0;
+  const urgencyCard = document.getElementById('urgency-value').parentElement;
+  if (isUrgent) {
+    document.getElementById('urgency-value').innerHTML = '<span style="color: var(--red); font-weight: bold; animation: pulse 1.5s infinite;">🚨 PRIORITY: HIGH</span>';
+    urgencyCard.style.border = '1px solid var(--red)';
+    urgencyCard.style.boxShadow = '0 0 15px rgba(248, 113, 113, 0.2)';
+  } else {
+    document.getElementById('urgency-value').textContent = '🟢 Normal';
+    urgencyCard.style.border = '';
+    urgencyCard.style.boxShadow = '';
+  }
+
   document.getElementById('latency-value').textContent =
     r.latency_ms ? r.latency_ms + 'ms' : '—';
 
   // Reason
-  document.getElementById('result-reason').textContent = r.reason || '';
+  document.getElementById('result-reason').innerHTML = `
+    <div style="padding: 12px; background: rgba(192, 193, 255, 0.05); border: 1px solid rgba(192, 193, 255, 0.1); border-radius: 8px; margin-top: 16px;">
+      <div style="font-size: 11px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; font-weight: 600;">Decision Reason</div>
+      <div style="font-size: 13px; color: var(--on-surface-variant);">${r.reason || ''}</div>
+    </div>
+  `;
 
   // Show explain button for valid input
   const explainBtn = document.getElementById('explain-btn');
   if (explainBtn) {
     explainBtn.style.display = 'flex';
-    explainBtn.dataset.text = document.getElementById('ticket-input').value;
+    explainBtn.dataset.text = routedText || document.getElementById('ticket-input').value;
     explainBtn.dataset.category = r.top_category;
   }
   document.getElementById('explanation-box').style.display = 'none';
@@ -439,17 +458,30 @@ function simulateRouting(text) {
   const entropy = -Object.values(scores).reduce((s, p) => s + p * Math.log(p + 1e-9), 0);
   const topCat = sorted[0][0];
   const topTwo = [sorted[0][0], sorted[1][0]];
+  const margin = sorted[0][1] - sorted[1][1];
 
   let action, reason;
-  if (confidence >= 0.80 && entropy <= 0.35) {
-    action = 'route';
-    reason = `High confidence (${(confidence*100).toFixed(1)}%) with low entropy (${entropy.toFixed(3)})`;
-  } else if (confidence >= 0.55) {
-    action = 'clarify';
-    reason = `Medium confidence (${(confidence*100).toFixed(1)}%) — clarification needed between ${topTwo[0].replace(/_/g,' ')} and ${topTwo[1].replace(/_/g,' ')}`;
+  const critical_labels = ['compliance_legal', 'account_management'];
+
+  if (critical_labels.includes(topCat)) {
+    if (confidence >= 0.90 && margin >= 0.35 && entropy < 0.60) {
+      action = 'route';
+      reason = `• Safe to auto-route sensitive intent<br>• Confidence: ${(confidence*100).toFixed(1)}%<br>• Margin: ${margin.toFixed(2)}`;
+    } else {
+      action = 'escalate';
+      reason = `• Escalated sensitive intent (${topCat.replace(/_/g,' ')})<br>• Strict confidence/margin threshold not met`;
+    }
   } else {
-    action = 'clarify';
-    reason = `Borderline confidence (${(confidence*100).toFixed(1)}%) — clarification recommended between ${topTwo[0].replace(/_/g,' ')} and ${topTwo[1].replace(/_/g,' ')}`;
+    if (confidence >= 0.85 && margin >= 0.25 && entropy < 0.70) {
+      action = 'route';
+      reason = `• Strong dominant intent<br>• Confidence: ${(confidence*100).toFixed(1)}%<br>• Margin: ${margin.toFixed(2)}<br>• Safe to auto-route`;
+    } else if (confidence >= 0.60 && entropy < 1.05) {
+      action = 'clarify';
+      reason = `• Medium ambiguity detected<br>• Clarification needed between ${topTwo[0].replace(/_/g,' ')} and ${topTwo[1].replace(/_/g,' ')}<br>• Margin: ${margin.toFixed(2)}`;
+    } else {
+      action = 'escalate';
+      reason = `• High ambiguity / Low confidence (${(confidence*100).toFixed(1)}%)<br>• Multiple overlapping intents detected<br>• Human triage needed`;
+    }
   }
 
   // Clarification question
@@ -494,12 +526,15 @@ function simulateRouting(text) {
   const urgencyFlags = urgencyWords.filter(w => t.includes(w));
 
   // SLA — deterministic based on text features
-  const slaBase = 0.15 + (text.split(' ').length / 200) + (sentScore < -0.3 ? 0.2 : 0) + (urgencyFlags.length * 0.1);
+  const outageWords = ['down', 'outage', 'crash', 'failing', 'blocked'];
+  const outageFlags = outageWords.filter(w => t.includes(w));
+  const slaBase = 0.15 + (sentScore < -0.3 ? 0.2 : 0) + (urgencyFlags.length * 0.15) + (outageFlags.length * 0.2);
   const slaBreach = Math.min(Math.round(slaBase * 1000) / 1000, 0.95);
 
   return {
     action, confidence: Math.round(confidence * 10000) / 10000,
     entropy: Math.round(entropy * 10000) / 10000,
+    margin: Math.round(margin * 10000) / 10000,
     top_category: topCat, all_probs: scores,
     top_two_classes: topTwo, queue: topCat,
     reason, clarification,
