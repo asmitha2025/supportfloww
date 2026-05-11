@@ -1,5 +1,7 @@
 from huggingface_hub import HfApi
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def fix_structure():
     token = os.getenv("HF_TOKEN")

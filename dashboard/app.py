@@ -62,13 +62,13 @@ if st.button("⚡ Route Ticket", type="primary", use_container_width=True):
     if ticket_text.strip():
         with st.spinner("Running MC Dropout inference..."):
             try:
-                from confidence_router import ConfidenceGatedRouter, ROUTE_THRESHOLD, CLARIFY_THRESHOLD
-                import confidence_router as cr
-                cr.ROUTE_THRESHOLD = route_thresh
-                cr.CLARIFY_THRESHOLD = clarify_thresh
-                cr.ENTROPY_MAX = entropy_max
+                from ensemble_router import EnsembleRouter
+                import ensemble_router as er
+                er.ROUTE_THRESHOLD = route_thresh
+                er.CLARIFY_THRESHOLD = clarify_thresh
+                er.ENTROPY_MAX = entropy_max
 
-                router = ConfidenceGatedRouter(device='cpu')
+                router = EnsembleRouter(device='cpu')
                 result = router.route(ticket_text, n_passes=mc_passes)
 
                 # Display action

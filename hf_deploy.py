@@ -1,6 +1,8 @@
 from huggingface_hub import HfApi
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
 
 def deploy():
     token = os.getenv("HF_TOKEN")

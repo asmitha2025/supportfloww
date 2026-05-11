@@ -259,6 +259,26 @@ class EnsembleRouter:
                 action = 'escalate'
                 reason = f'• Escalated sensitive intent ({category})<br>• Strict confidence/margin threshold not met'
                 if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span> (Insufficient)'
+        elif category == 'technical_support':
+            # Category-specific check for technical support to catch billing misroutes
+            billing_keywords = ['invoice', 'billing', 'charge', 'refund', 'payment', 'subscription', 'plan']
+            has_billing_kw = any(kw in ticket_text.lower() for kw in billing_keywords)
+            
+            if has_billing_kw and 'billing' in [r[0] for r in ranking[:3]]:
+                action = 'clarify'
+                reason = f'• Billing overlap detected<br>• Clarification needed between technical_support and billing'
+            elif effective_conf >= 0.88 and margin >= 0.30 and entropy < 0.65:
+                # Stricter thresholds for technical_support
+                action = 'route'
+                reason = f'• Strong dominant intent<br>• Confidence: {confidence:.2%}<br>• Margin: {margin:.2f}<br>• Safe to auto-route'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span>'
+            elif effective_conf >= 0.60 and entropy < 1.05:
+                action = 'clarify'
+                reason = f'• Medium ambiguity detected<br>• Clarification needed between {top_two[0]} and {top_two[1]}<br>• Margin: {margin:.2f}'
+                if hist_boost > 0: reason += f'<br>• <span style="color:var(--green)">Historical Match Boost: +{hist_boost:.2%}</span> (Insufficient for auto-route)'
+            else:
+                action = 'escalate'
+                reason = f'• High ambiguity / Low confidence ({confidence:.2%})<br>• Multiple overlapping intents detected<br>• Human triage needed'
         else:
             if effective_conf >= 0.85 and margin >= 0.25 and entropy < 0.70:
                 action = 'route'
