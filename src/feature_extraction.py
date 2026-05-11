@@ -14,27 +14,21 @@ try:
 except ImportError:
     HAS_VADER = False
 
-URGENCY_KEYWORDS = [
-    'urgent', 'asap', 'immediately', 'critical', 'emergency', 'blocking',
-    'production down', 'outage', 'cannot access', 'locked out', 'deadline',
-    'sla', 'escalate', 'priority', 'time-sensitive', 'showstopper',
+CRITICAL_URGENCY = [
+    'crash', 'blocked', 'down', 'failing', 'cannot access', 'production issue',
+    'outage', 'emergency', 'critical', 'urgent', 'immediately', 'blocking',
 ]
 
-PRODUCT_KEYWORDS = {
-    'api': 'API/Integration',
-    'dashboard': 'Dashboard',
-    'export': 'Export Feature',
-    'import': 'Import Feature',
-    'billing': 'Billing System',
-    'invoice': 'Invoice System',
-    'sso': 'SSO/Authentication',
-    'login': 'Authentication',
-    'password': 'Authentication',
-    'webhook': 'Webhooks',
-    'integration': 'Integrations',
-    'report': 'Reporting',
-    'analytics': 'Analytics',
-}
+GENERAL_URGENCY = [
+    'asap', 'deadline', 'sla', 'escalate', 'priority', 'time-sensitive', 'showstopper',
+]
+
+COMPLEXITY_KEYWORDS = [
+    'integration', 'migration', 'sso', 'bulk', 'setup', 'configure', 'synchronization',
+    'permissions', 'architecture', 'implementation', 'customization',
+]
+
+MULTI_INTENT_KEYWORDS = ['also', 'and', 'additionally', 'moreover', 'furthermore', 'plus']
 
 
 class FeatureExtractor:
@@ -43,7 +37,8 @@ class FeatureExtractor:
     
     Features:
         - Sentiment score (VADER or fallback)
-        - Urgency keyword detection
+        - Urgency score (Operational danger)
+        - Complexity score (Implementation difficulty)
         - Product/feature entity recognition
         - Text complexity (Flesch-Kincaid approximation)
         - Token count
@@ -59,16 +54,20 @@ class FeatureExtractor:
         words = text.split()
         sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
 
+        urg_flags = self._urgency_flags(text_lower)
+        
         return {
             'sentiment_score': self._sentiment(text),
-            'urgency_flags': self._urgency(text_lower),
-            'urgency_score': self._urgency_score(text_lower),
+            'urgency_flags': urg_flags,
+            'urgency_score': self._calculate_urgency(text_lower),
+            'complexity_score': self._calculate_complexity(text_lower),
             'product_entities': self._product_entities(text_lower),
             'text_complexity_score': self._flesch_kincaid(words, sentences),
             'token_count': len(words),
             'sentence_count': len(sentences),
             'has_question': '?' in text,
             'has_error_code': bool(re.search(r'error\s*(?:code\s*)?[\d#:]+|err[-_]\d+|HTTP\s*\d{3}', text, re.I)),
+            'has_multi_intent_signal': any(kw in text_lower for kw in MULTI_INTENT_KEYWORDS),
             'email_mentions': len(re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', text)),
             'url_mentions': len(re.findall(r'https?://\S+', text)),
             'mentioned_dates': bool(re.search(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\blast\s+(?:week|month|tuesday|monday|wednesday|thursday|friday)\b', text_lower)),
@@ -84,25 +83,24 @@ class FeatureExtractor:
         p = sum(1 for w in pos if w in tl)
         return (p - n) / max(p + n, 1)
 
-    def _urgency(self, text_lower: str) -> list:
-        return [kw for kw in URGENCY_KEYWORDS if kw in text_lower]
+    def _urgency_flags(self, text_lower: str) -> list:
+        found = [kw for kw in CRITICAL_URGENCY if kw in text_lower]
+        found.extend([kw for kw in GENERAL_URGENCY if kw in text_lower])
+        return list(set(found))
 
-    def _urgency_score(self, text_lower: str) -> float:
-        """Tiered urgency scoring based on keyword count.
+    def _calculate_urgency(self, text_lower: str) -> float:
+        """Operational danger score."""
+        crit_count = sum(1 for kw in CRITICAL_URGENCY if kw in text_lower)
+        gen_count = sum(1 for kw in GENERAL_URGENCY if kw in text_lower)
         
-        1 keyword  → 0.5  (moderate urgency — e.g. 'urgent')
-        2 keywords → 0.75 (high urgency — e.g. 'urgent' + 'production down')
-        3+ keywords→ 1.0  (critical — multiple severity indicators)
-        """
-        count = len(self._urgency(text_lower))
-        if count == 0:
-            return 0.0
-        elif count == 1:
-            return 0.5
-        elif count == 2:
-            return 0.75
-        else:
-            return 1.0
+        score = (crit_count * 0.4) + (gen_count * 0.15)
+        return min(max(score, 0.0), 1.0)
+
+    def _calculate_complexity(self, text_lower: str) -> float:
+        """Implementation difficulty score."""
+        comp_count = sum(1 for kw in COMPLEXITY_KEYWORDS if kw in text_lower)
+        score = comp_count * 0.25
+        return min(max(score, 0.0), 1.0)
 
     def _product_entities(self, text_lower: str) -> list:
         found = []

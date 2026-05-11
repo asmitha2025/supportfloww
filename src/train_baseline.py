@@ -20,6 +20,12 @@ def train_baseline():
     
     data_path = os.path.join("data", "raw", "support_tickets.csv")
     
+    categories = [
+        'billing', 'technical_support', 'account_management', 'feature_request',
+        'compliance_legal', 'onboarding', 'general_inquiry', 'churn_risk'
+    ]
+    cat_to_id = {cat: i for i, cat in enumerate(categories)}
+
     # Generate some fallback synthetic data if CSV is not present
     if os.path.exists(data_path):
         print(f"Loading data from {data_path}...")
@@ -27,8 +33,12 @@ def train_baseline():
             df = pd.read_csv(data_path)
             # Assuming columns 'text' and 'category' exist
             if 'text' in df.columns and 'category' in df.columns:
+                # Filter data to only include these categories
+                df = df[df['category'].isin(categories)].copy()
+                df['label'] = df['category'].map(cat_to_id)
+                
                 texts = df['text'].dropna().astype(str).tolist()
-                labels = df['category'].dropna().astype(str).tolist()
+                labels = df['label'].tolist()
             else:
                 raise ValueError("CSV missing 'text' or 'category' columns.")
         except Exception as e:
@@ -38,7 +48,7 @@ def train_baseline():
         print(f"{data_path} not found. Generating synthetic baseline data...")
         texts, labels = get_synthetic_data()
 
-    print(f"Training on {len(texts)} samples...")
+    print(f"Training on {len(texts)} samples across {len(set(labels))} categories...")
     
     # Create the pipeline
     pipeline = Pipeline([
@@ -61,12 +71,19 @@ def train_baseline():
 
 def get_synthetic_data():
     """Returns synthetic data for fallback training."""
-    categories = ['billing', 'technical_support', 'sales', 'account_management']
+    categories = [
+        'billing', 'technical_support', 'account_management', 'feature_request',
+        'compliance_legal', 'onboarding', 'general_inquiry', 'churn_risk'
+    ]
     base_texts = {
         'billing': ["invoice is wrong", "charge on my card", "cancel subscription", "refund request", "pricing plan"],
         'technical_support': ["server is down", "cannot login", "getting 500 error", "bug in the app", "export failing"],
-        'sales': ["want to upgrade", "talk to sales", "enterprise pricing", "demo request", "more seats"],
-        'account_management': ["change password", "update email", "delete account", "add user", "role permissions"]
+        'account_management': ["change password", "update email", "delete account", "add user", "role permissions"],
+        'feature_request': ["add a feature", "new capability", "implement this", "suggest an improvement"],
+        'compliance_legal': ["gdpr report", "data handling documentation", "signed agreement", "privacy policy"],
+        'onboarding': ["setup help", "first time user", "getting started", "onboarding walkthrough"],
+        'general_inquiry': ["how do I", "question about", "more info", "demo please"],
+        'churn_risk': ["I am leaving", "cancel my account", "switching to competitor", "terrible service"]
     }
     
     texts = []
@@ -77,7 +94,7 @@ def get_synthetic_data():
         for _ in range(50):
             for text in base_texts[cat]:
                 texts.append(text)
-                labels.append(cat)
+                labels.append(categories.index(cat))
                 
     return texts, labels
 

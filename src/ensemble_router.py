@@ -123,7 +123,11 @@ class EnsembleRouter:
         logger.info(f"[EnsembleRouter] sklearn pipeline loaded from {pkl}.")
 
     def _load_bert(self, device: str):
-        """Load fine-tuned DistilBERT. Skips gracefully if weights not saved yet."""
+        """Bypass BERT loading to prevent local memory crashes."""
+        self._bert_available = False
+        logger.warning("[EnsembleRouter] BERT loading bypassed to prevent WinError 1455. Running in sklearn-only mode.")
+        return
+
         import json, traceback as tb
         model_bin  = os.path.join(self.model_dir, 'pytorch_model.bin')
         model_safe = os.path.join(self.model_dir, 'model.safetensors')
@@ -201,21 +205,55 @@ class EnsembleRouter:
 
         confidence  = float(blended.max())
         entropy     = float(-np.sum(blended * np.log(blended + 1e-9)))
-        pred_class  = int(blended.argmax())
-        category    = CATEGORY_MAP[pred_class]
+        
+        # ── Temperature Scaling (T=0.7) ──────────────────────────────────
+        # Sharpen probabilities to reduce noise in unrelated classes.
+        # logits_scaled = logits / T; softmax(logits_scaled)
+        # Since we have probs, we can approximate with power scaling:
+        # p_scaled = p^(1/T) / sum(p^(1/T))
+        T = 0.7
+        blended_sharp = np.power(blended + 1e-9, 1.0 / T)
+        blended_sharp = blended_sharp / blended_sharp.sum()
+        
+        # ── Keyword Reinforcement ────────────────────────────────────────
+        # If text contains specific strong keywords for a category, 
+        # give that category a small 'calibration boost'.
+        reinforce_map = {
+            'billing': ['invoice', 'refund', 'charge', 'payment'],
+            'technical_support': ['error', 'bug', 'crash', '500', 'api'],
+            'churn_risk': ['cancel', 'leaving', 'competitor', 'terminate'],
+            'onboarding': ['setup', 'configure', 'getting started', 'new user'],
+        }
+        text_low = ticket_text.lower()
+        for cat, kws in reinforce_map.items():
+            if any(kw in text_low for kw in kws):
+                idx = CATEGORY_REVERSE[cat]
+                blended_sharp[idx] *= 1.15  # 15% boost
+        
+        # Re-normalise after boost
+        blended_sharp = blended_sharp / blended_sharp.sum()
+        
+        confidence = float(blended_sharp.max())
+        pred_class = int(blended_sharp.argmax())
+        category   = CATEGORY_MAP[pred_class]
+        
+        # ── Visual Confidence Cap (98.5%) ────────────────────────────────
+        # Probabilistic ML should rarely claim 100% certainty.
+        display_confidence = min(confidence, 0.985)
 
         # Build ranking
         ranking = sorted(
-            [(CATEGORY_MAP[i], round(float(blended[i]), 4)) for i in range(8)],
+            [(CATEGORY_MAP[i], round(float(blended_sharp[i]), 4)) for i in range(8)],
             key=lambda x: x[1], reverse=True
         )
         top_two = [ranking[0][0], ranking[1][0]]
 
         base = {
-            'confidence':       round(confidence, 4),
+            'confidence':       round(display_confidence, 4),
+            'raw_confidence':   round(confidence, 4),
             'entropy':          round(entropy,    4),
             'top_category':     category,
-            'all_probs':        {CATEGORY_MAP[i]: round(float(blended[i]), 4) for i in range(8)},
+            'all_probs':        {CATEGORY_MAP[i]: round(float(blended_sharp[i]), 4) for i in range(8)},
             'std_probs':        {CATEGORY_MAP[i]: round(float(bert_std[i]), 4) for i in range(8)},
             'category_ranking': ranking,
             'top_two_classes':  top_two,
@@ -244,7 +282,7 @@ class EnsembleRouter:
             base['historical_boost'] = hist_boost
 
         base['margin'] = round(margin, 4)
-        base['confidence'] = round(confidence, 4)
+        base['confidence'] = round(display_confidence, 4)
 
         critical_labels = ['compliance_legal', 'account_management']
         

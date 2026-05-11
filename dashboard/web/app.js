@@ -42,6 +42,36 @@ function animateCounters() {
 }
 
 // ── Presets ────────────────────────────────────────────
+// ── Live Telemetry Engine ───────────────────────────
+async function updateMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/metrics`);
+    if (!res.ok) return;
+    const data = await res.json();
+    
+    // Update Counter
+    document.getElementById('live-total').textContent = data.total_requests.toLocaleString();
+    
+    // Update Model Name
+    document.getElementById('live-model').textContent = data.model;
+    
+    // Update Distribution Bar
+    const dist = data.routing_distribution;
+    document.getElementById('dist-route').style.width = `${dist.route_pct}%`;
+    document.getElementById('dist-clarify').style.width = `${dist.clarify_pct}%`;
+    document.getElementById('dist-escalate').style.width = `${dist.escalate_pct}%`;
+    
+    // Update Status Pulse
+    const indicator = document.getElementById('live-indicator');
+    indicator.style.opacity = '1';
+    setTimeout(() => { indicator.style.opacity = '0.8'; }, 500);
+    
+  } catch (err) {
+    console.warn("Metrics sync failed:", err);
+  }
+}
+
+// ── Presets ────────────────────────────────────────────
 function initPresets() {
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -49,6 +79,24 @@ function initPresets() {
     });
   });
 }
+
+// Initial load and interval
+window.addEventListener('DOMContentLoaded', () => {
+  checkAPI();
+  initPresets();
+  updateMetrics();
+  setInterval(updateMetrics, 5000);
+  
+  // Smooth scroll
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.querySelector(this.getAttribute('href')).scrollIntoView({
+        behavior: 'smooth'
+      });
+    });
+  });
+});
 
 // ── MC Dropout Visualization ──────────────────────────
 function initDropoutViz() {
@@ -187,13 +235,26 @@ function displayResult(r, routedText) {
   const content = document.getElementById('result-content');
   content.style.display = 'block';
 
-  // Action badge
+  // Action Badge Logic
   const badge = document.getElementById('action-badge');
-  badge.textContent = r.action.toUpperCase();
-  badge.className = 'action-badge ' + r.action;
-  const queueEl = document.getElementById('action-queue');
-  queueEl.textContent = r.action === 'route' ? `→ ${r.queue || r.top_category} queue` :
+  const queue = document.getElementById('action-queue');
+  
+  if (r.action === 'multi_route') {
+    badge.textContent = 'MULTI-ROUTE';
+    badge.className = 'action-badge';
+    badge.style.background = 'linear-gradient(90deg, var(--primary), var(--accent))';
+    queue.innerHTML = `
+      <div style="display: flex; gap: 8px; margin-top: 4px;">
+        <span class="tech-tag" style="background: rgba(192, 193, 255, 0.2)">Primary: ${r.primary_queue}</span>
+        <span class="tech-tag" style="background: rgba(255, 255, 255, 0.1)">Secondary: ${r.secondary_queue}</span>
+      </div>
+    `;
+  } else {
+    badge.textContent = r.action.toUpperCase();
+    badge.className = `action-badge ${r.action}`;
+    queue.textContent = r.action === 'route' ? `→ ${r.queue || r.top_category} queue` : 
                          r.action === 'clarify' ? 'Needs 1 clarification question' : 'Immediate human triage';
+  }
 
   // Gauges
   const confPct = Math.min(r.confidence * 100, 100);
@@ -274,23 +335,28 @@ function displayResult(r, routedText) {
   }
 
   // Signals
-  const slaPct = (r.sla_breach_probability || 0) * 100;
-  document.getElementById('sla-value').textContent = ((r.sla_breach_probability || 0) * 100).toFixed(1) + '%';
+  const slaRiskVal = r.sla_risk || r.sla_breach_probability || 0;
+  const slaPct = slaRiskVal * 100;
+  document.getElementById('sla-value').textContent = slaPct.toFixed(1) + '%';
   document.getElementById('sla-fill').style.width = slaPct + '%';
   document.getElementById('sla-fill').style.background =
-    slaPct > 60 ? 'var(--red)' : slaPct > 30 ? 'var(--orange)' : 'var(--green)';
+    slaPct > 65 ? 'var(--red)' : slaPct > 35 ? 'var(--yellow)' : 'var(--green)';
 
   const feat = r.features || {};
   const sent = feat.sentiment_score;
   document.getElementById('sentiment-value').textContent =
     sent !== undefined ? (sent > 0.2 ? '😊 ' : sent < -0.2 ? '😤 ' : '😐 ') + sent.toFixed(2) : '—';
   
-  const isUrgent = feat.urgency_flags && feat.urgency_flags.length > 0;
+  const urgScore = r.urgency_score || feat.urgency_score || 0;
   const urgencyCard = document.getElementById('urgency-value').parentElement;
-  if (isUrgent) {
-    document.getElementById('urgency-value').innerHTML = '<span style="color: var(--red); font-weight: bold; animation: pulse 1.5s infinite;">🚨 PRIORITY: HIGH</span>';
+  if (urgScore > 0.6) {
+    document.getElementById('urgency-value').innerHTML = '<span style="color: var(--red); font-weight: bold; animation: pulse 1.5s infinite;">🚨 CRITICAL</span>';
     urgencyCard.style.border = '1px solid var(--red)';
     urgencyCard.style.boxShadow = '0 0 15px rgba(248, 113, 113, 0.2)';
+  } else if (urgScore > 0.2) {
+    document.getElementById('urgency-value').innerHTML = '<span style="color: var(--yellow); font-weight: bold;">⚡ HIGH</span>';
+    urgencyCard.style.border = '1px solid var(--yellow)';
+    urgencyCard.style.boxShadow = '';
   } else {
     document.getElementById('urgency-value').textContent = '🟢 Normal';
     urgencyCard.style.border = '';
@@ -301,10 +367,21 @@ function displayResult(r, routedText) {
     r.latency_ms ? r.latency_ms + 'ms' : '—';
 
   // Reason
+  let decisionReason = '';
+  if (r.action === 'multi_route') {
+    decisionReason = `Multiple distinct intents detected in the request. Primary intent is <strong>${r.primary_queue}</strong>, secondary is <strong>${r.secondary_queue}</strong>.`;
+  } else if (r.action === 'clarify') {
+    decisionReason = `Model uncertainty is high (entropy: ${r.entropy.toFixed(3)}) or the top two classes are too close (margin: ${r.margin?.toFixed(3)}). A clarification question was generated to refine the intent.`;
+  } else if (r.action === 'escalate') {
+    decisionReason = `Low model confidence detected (${(r.confidence * 100).toFixed(1)}%). Routing directly to human experts to ensure accuracy.`;
+  } else {
+    decisionReason = `High-confidence intent detected: <strong>${r.top_category}</strong>. Automatically routing to specialized queue.`;
+  }
+
   document.getElementById('result-reason').innerHTML = `
     <div style="padding: 12px; background: rgba(192, 193, 255, 0.05); border: 1px solid rgba(192, 193, 255, 0.1); border-radius: 8px; margin-top: 16px;">
       <div style="font-size: 11px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; font-weight: 600;">Decision Reason</div>
-      <div style="font-size: 13px; color: var(--on-surface-variant);">${r.reason || ''}</div>
+      <div style="font-size: 13px; color: var(--on-surface-variant); line-height: 1.5;">${decisionReason}</div>
     </div>
   `;
 
