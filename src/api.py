@@ -215,25 +215,85 @@ def route_ticket(req: TicketRequest):
     router = get_router()
     result = router.route(clean_text)
 
-    # Get features
+    # Get features FIRST so we can use them for non-support gating
     feat_ext = get_features()
     features = feat_ext.extract(clean_text)
 
+    # ── Non-support input detection ───────────────────
+    # Reject things like "welcome to my channel", "subscribe and like", random text
+    # that don't look like support tickets.
+    # Classification uncertainty ≠ business risk. We reject these
+    # instead of blindly escalating them to human agents.
+    confidence = result.get('confidence', 0)
+    entropy = result.get('entropy', 0)
+    
+    has_urgency = len(features.get('urgency_flags', [])) > 0
+    has_product = len(features.get('product_entities', [])) > 0
+    is_short = features.get('token_count', 0) < 10
+    not_a_question = not features.get('has_question', False)
 
-    # SLA prediction
-    sla = get_sla()
-    sla_features = {
-        'text_complexity_score': features['text_complexity_score'],
-        'agent_queue_depth': 15,
-        'customer_tier': 3,
-        'hour_of_day': datetime.now().hour,
-        'day_of_week': datetime.now().weekday(),
-        'similar_ticket_avg_hrs': features.get('similar_ticket_avg_hrs', 4.5),
-        'sentiment_score': features['sentiment_score'],
-        'repeat_issue': 0,
-        'escalated_before': 0,
-    }
-    sla_risk = sla.predict(sla_features)
+    is_junk = False
+    # Condition 1: High uncertainty + no urgency (like random text)
+    if entropy > 1.4 and confidence < 0.45 and not has_urgency:
+        is_junk = True
+        
+    # Condition 2: Short, no urgency, no product, not a question, low confidence
+    if is_short and not has_urgency and not has_product and not_a_question and confidence < 0.65:
+        is_junk = True
+
+    if is_junk:
+        return {
+            'action': 'invalid_input',
+            'error_type': 'non_support',
+            'response': "This doesn't appear to be a support request. "
+                        "Could you describe a specific issue you're "
+                        "experiencing with our product or service?",
+            'confidence': round(confidence, 4),
+            'entropy': round(entropy, 4),
+            'top_category': result.get('top_category'),
+            'all_probs': result.get('all_probs', {}),
+            'sla_breach_probability': 0.0,
+            'clarification': None,
+            'latency_ms': round((time.time() - start) * 1000, 1),
+            'customer_id': req.customer_id,
+        }
+
+    # ── SLA prediction (business-signal-driven formula) ──
+    # SLA breach risk must reflect OPERATIONAL risk, not
+    # classification uncertainty. We compute it from:
+    #   - urgency flags (ASAP, blocking, production down)  → 40% weight
+    #   - negative sentiment (frustrated customers)        → 25% weight
+    #   - text complexity (complex issues take longer)     → 20% weight
+    #   - churn risk probability                           → 15% weight
+    # NOT from entropy or low confidence.
+    urgency_score = features.get('urgency_score', 0.0)
+    has_urgency = len(features.get('urgency_flags', [])) > 0
+    sentiment = features.get('sentiment_score', 0.0)
+    complexity = features.get('text_complexity_score', 0.0)
+    margin = result.get('margin', 0.0)
+
+    # Normalized components (each 0.0 → 1.0)
+    urgency_component = min(urgency_score, 1.0)                          # already 0–1
+    sentiment_component = max(0.0, -sentiment)                           # negative → high risk
+    complexity_component = min(complexity / 15.0, 1.0)                   # normalize 0–15 scale
+    churn_component = result.get('all_probs', {}).get('churn_risk', 0.0) # model's churn prob
+
+    # Weighted combination
+    raw_sla = (
+        urgency_component  * 0.40 +
+        sentiment_component * 0.25 +
+        complexity_component * 0.20 +
+        churn_component     * 0.15
+    )
+
+    # ── Gate: non-support / junk text should have near-zero SLA ──
+    # If confidence is low AND sentiment is neutral/positive AND no
+    # urgency flags, the text is likely not a real support issue.
+    # Also check for very low margin (near-uniform = random text).
+    if confidence < 0.50 and sentiment >= -0.1 and not has_urgency and margin < 0.10:
+        sla_risk = round(max(0.01, raw_sla * 0.05), 4)  # suppress to ~0–2%
+    else:
+        sla_risk = round(min(max(raw_sla, 0.0), 1.0), 4)
 
     # Update stats
     action = result['action']

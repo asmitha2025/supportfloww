@@ -62,7 +62,7 @@ class FeatureExtractor:
         return {
             'sentiment_score': self._sentiment(text),
             'urgency_flags': self._urgency(text_lower),
-            'urgency_score': len(self._urgency(text_lower)) / max(len(URGENCY_KEYWORDS), 1),
+            'urgency_score': self._urgency_score(text_lower),
             'product_entities': self._product_entities(text_lower),
             'text_complexity_score': self._flesch_kincaid(words, sentences),
             'token_count': len(words),
@@ -86,6 +86,23 @@ class FeatureExtractor:
 
     def _urgency(self, text_lower: str) -> list:
         return [kw for kw in URGENCY_KEYWORDS if kw in text_lower]
+
+    def _urgency_score(self, text_lower: str) -> float:
+        """Tiered urgency scoring based on keyword count.
+        
+        1 keyword  → 0.5  (moderate urgency — e.g. 'urgent')
+        2 keywords → 0.75 (high urgency — e.g. 'urgent' + 'production down')
+        3+ keywords→ 1.0  (critical — multiple severity indicators)
+        """
+        count = len(self._urgency(text_lower))
+        if count == 0:
+            return 0.0
+        elif count == 1:
+            return 0.5
+        elif count == 2:
+            return 0.75
+        else:
+            return 1.0
 
     def _product_entities(self, text_lower: str) -> list:
         found = []
