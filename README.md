@@ -1,3 +1,12 @@
+---
+title: SupportMind
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # AetherFlow AI | SupportMind Engine 🧠
 
 **Confidence-Gated Support Intelligence for B2B SaaS Customer Operations**

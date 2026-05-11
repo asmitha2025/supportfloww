@@ -1,7 +1,7 @@
 // SupportMind Dashboard — app.js
 // Interactive demo with real API calls (falls back to simulation if API unavailable)
 
-const API_BASE = 'http://localhost:7861';
+const API_BASE = window.location.origin;
 let apiOnline = false;
 
 // Category colors
@@ -416,7 +416,25 @@ function seededRandom(seed) {
 
 // ── Simulation (when API is offline) ──────────────────
 function simulateRouting(text) {
-  const t = text.toLowerCase();
+  const t = text.toLowerCase().trim();
+  
+  // Basic validation in simulation to match real API behavior
+  if (t.length < 10) {
+    const greetings = ['hi', 'hello', 'hey', 'test'];
+    if (greetings.some(g => t.startsWith(g))) {
+        return {
+            action: 'invalid_input',
+            error_type: 'greeting',
+            response: "Hi there! 👋 Could you describe the issue you're experiencing? We're here to help."
+        };
+    }
+    return {
+        action: 'invalid_input',
+        error_type: 'too_short',
+        response: "Could you share a bit more detail about your issue? We're here to help."
+    };
+  }
+
   const rng = seededRandom(hashText(t));  // deterministic per text
 
   const scores = {
