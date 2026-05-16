@@ -393,6 +393,15 @@ def _apply_direct_signal_overrides(result: Dict, text: str, direct_intents: List
     return result
 
 
+def _order_intents_by_probability(intents: List[str], result: Dict) -> List[str]:
+    probs = result.get('all_probs') or {}
+    original_rank = {intent: idx for idx, intent in enumerate(intents)}
+    return sorted(
+        intents,
+        key=lambda intent: (-float(probs.get(intent, 0.0)), original_rank[intent]),
+    )
+
+
 def _has_support_intent(text: str, features: Dict, result: Dict) -> bool:
     if any(re.search(pattern, text, flags=re.I) for pattern in SUPPORT_INTENT_PATTERNS):
         return True
@@ -542,6 +551,8 @@ def route_ticket(req: TicketRequest):
         unique_intents = list(dict.fromkeys(segment_intents or direct_intents))
         is_multi_intent = len(unique_intents) >= 2
         result = _apply_direct_signal_overrides(result, clean_text, unique_intents)
+        if is_multi_intent:
+            unique_intents = _order_intents_by_probability(unique_intents, result)
 
     # 4. Operational SLA Risk Engine
     urg_val = features.get('urgency_score', 0.0)

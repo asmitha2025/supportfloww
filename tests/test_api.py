@@ -1,12 +1,13 @@
 import os
 import sys
 import json
+import pytest
 from fastapi.testclient import TestClient
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
 
-from api import app
+from api import app, _order_intents_by_probability
 
 client = TestClient(app)
 
@@ -88,6 +89,32 @@ def test_invoice_and_sso_login_detects_multi_intent():
     assert data["primary_queue"] == "billing"
     assert data["secondary_queue"] == "account_management"
     assert data["is_multi_intent"] is True
+
+@pytest.mark.parametrize("text", [
+    "Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.",
+    "Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.",
+])
+def test_multi_route_primary_matches_probability_chart(text):
+    response = client.post("/route", json={"text": text, "customer_id": "test_123"})
+    assert response.status_code == 200
+    data = response.json()
+    if data["action"] == "multi_route":
+        chart_top = max(data["all_probs"], key=data["all_probs"].get)
+        assert data["primary_queue"] == chart_top
+        assert data["secondary_queue"] != data["primary_queue"]
+
+def test_multi_route_ordering_uses_probability_chart():
+    result = {
+        "all_probs": {
+            "billing": 0.69,
+            "technical_support": 0.11,
+            "churn_risk": 0.16,
+        }
+    }
+    assert _order_intents_by_probability(
+        ["technical_support", "billing"],
+        result,
+    ) == ["billing", "technical_support"]
 
 def test_route_applies_clarification_answer():
     payload = {
