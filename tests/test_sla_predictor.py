@@ -37,6 +37,8 @@ def test_high_risk_features():
         'repeat_issue': 0, 'escalated_before': 0,
     }
     assert pred.predict(high_risk) > pred.predict(low_risk)
+    assert pred.predict(high_risk) >= 0.7
+    assert pred.predict(low_risk) < 0.4
 
 def test_explain():
     model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'sla_predictor', 'sla_xgb.json')
@@ -49,7 +51,10 @@ def test_explain():
     })
     assert 'breach_probability' in result
     assert 'risk_level' in result
+    assert 'calibration_source' in result
+    assert 'heuristic_probability' in result
     assert result['risk_level'] in ('low', 'medium', 'high')
+    assert result['risk_level'] in ('medium', 'high')
 
 if __name__ == '__main__':
     test_predictor_init()

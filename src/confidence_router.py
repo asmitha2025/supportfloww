@@ -6,6 +6,7 @@ import numpy as np
 from typing import Dict, Tuple, Optional
 import os
 import logging
+import importlib.util
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ AutoTokenizer = None
 ROUTE_THRESHOLD = 0.85     # Higher threshold for higher quality model
 CLARIFY_THRESHOLD = 0.60   
 ENTROPY_MAX = 0.28         
-MC_PASSES_CPU = 10         # Sequential passes for memory safety
+MC_PASSES_CPU = int(os.getenv('SUPPORTMIND_MC_PASSES', '3'))  # CPU demo default
 MC_PASSES_GPU = 50         # GPU allows for much better sampling
 
 CATEGORY_MAP = {
@@ -58,6 +59,7 @@ class ConfidenceGatedRouter:
 
     def __init__(self, model_path: Optional[str] = None, device: str = 'auto'):
         self._fallback_mode = False
+        self.fallback_reason = None
 
         force_transformer = os.getenv('SUPPORTMIND_FORCE_TRANSFORMER', '0') == '1'
         if os.name == 'nt' and not force_transformer:
@@ -108,9 +110,11 @@ class ConfidenceGatedRouter:
         logger.info(f"Device: {self.device}")
 
         try:
+            load_kwargs = {'num_labels': len(CATEGORY_MAP)}
+            if importlib.util.find_spec('accelerate') is not None:
+                load_kwargs['low_cpu_mem_usage'] = True
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name, num_labels=len(CATEGORY_MAP),
-                low_cpu_mem_usage=True
+                model_name, **load_kwargs
             ).to(self.device)
 
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -134,6 +138,7 @@ class ConfidenceGatedRouter:
         self.tokenizer = _FallbackTokenizer()
         self.mc_passes = 1
         self._fallback_mode = True
+        self.fallback_reason = reason
         logger.warning(
             "ConfidenceGatedRouter using lightweight fallback. %s",
             reason,

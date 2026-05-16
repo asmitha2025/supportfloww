@@ -47,6 +47,7 @@ results/
 .pytest_cache/
 scratch/
 src/server_log.txt
+tmp_probe_routes.py
 
 # OS/editor noise
 .DS_Store

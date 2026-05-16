@@ -38,7 +38,7 @@ CATEGORY_REVERSE = {v: k for k, v in CATEGORY_MAP.items()}
 ROUTE_THRESHOLD   = 0.82   # ensemble conf >= this → auto-route
 CLARIFY_THRESHOLD = 0.58   # ensemble conf >= this → ask 1 question
 ENTROPY_MAX       = 0.32   # ensemble entropy <= this → low ambiguity
-MC_PASSES         = 10     # MC Dropout stochastic passes (sequential for memory)
+MC_PASSES         = int(os.getenv('SUPPORTMIND_MC_PASSES', '3'))  # CPU demo default
 
 # ── Ensemble weights ─────────────────────────────────────────────────────────
 # BERT weight is higher because it generalises better to unseen phrasing.
@@ -244,7 +244,11 @@ class EnsembleRouter:
             from confidence_router import ConfidenceGatedRouter
             self._bert_router = ConfidenceGatedRouter(self.model_dir, device=device)
             self._bert_available = not getattr(self._bert_router, '_fallback_mode', False)
-            self._bert_reason = 'loaded' if self._bert_available else 'confidence_router_fallback'
+            fallback_reason = getattr(self._bert_router, 'fallback_reason', None)
+            self._bert_reason = (
+                'loaded' if self._bert_available
+                else f'confidence_router_fallback: {fallback_reason or "unknown"}'
+            )
             gc.collect()
             if self._bert_available:
                 logger.info(f"[EnsembleRouter] {self._bert_router.model.config.model_type.upper()} loaded successfully.")

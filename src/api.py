@@ -142,7 +142,8 @@ def startup_event():
     get_churn()
     get_features()
     get_validator()
-    get_explainer()
+    # Explainability can be expensive with transformer models, so keep it lazy.
+    # The /explain endpoint initializes it only when an explanation is requested.
     logger.info("All ML models loaded successfully.")
 
 def get_router():
