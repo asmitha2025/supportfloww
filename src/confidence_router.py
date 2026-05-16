@@ -2,14 +2,16 @@
 # Core module: MC Dropout Confidence-Gated Ticket Router
 # SupportMind v1.0 — Asmitha
 
-import torch
 import numpy as np
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from typing import Dict, Tuple, Optional
 import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+torch = None
+AutoModelForSequenceClassification = None
+AutoTokenizer = None
 
 # Thresholds — tuned for DeBERTa-v3 ensemble
 ROUTE_THRESHOLD = 0.85     # Higher threshold for higher quality model
@@ -32,6 +34,22 @@ CATEGORY_MAP = {
 CATEGORY_REVERSE = {v: k for k, v in CATEGORY_MAP.items()}
 
 
+class _FallbackModel:
+    def eval(self):
+        return None
+
+    def modules(self):
+        return []
+
+    def parameters(self):
+        return []
+
+
+class _FallbackTokenizer:
+    def __call__(self, *args, **kwargs):
+        return {}
+
+
 class ConfidenceGatedRouter:
     """
     Confidence-Gated Ticket Router using Monte Carlo Dropout.
@@ -39,6 +57,33 @@ class ConfidenceGatedRouter:
     """
 
     def __init__(self, model_path: Optional[str] = None, device: str = 'auto'):
+        self._fallback_mode = False
+
+        force_transformer = os.getenv('SUPPORTMIND_FORCE_TRANSFORMER', '0') == '1'
+        if os.name == 'nt' and not force_transformer:
+            self.device = 'cpu'
+            self._init_fallback(
+                "Transformer loading is disabled by default on Windows "
+                "to avoid native safetensors/PyTorch access violations. "
+                "Set SUPPORTMIND_FORCE_TRANSFORMER=1 to force full model loading."
+            )
+            return
+
+        global torch, AutoModelForSequenceClassification, AutoTokenizer
+        try:
+            import torch as torch_module
+            from transformers import (
+                AutoModelForSequenceClassification as model_loader,
+                AutoTokenizer as tokenizer_loader,
+            )
+            torch = torch_module
+            AutoModelForSequenceClassification = model_loader
+            AutoTokenizer = tokenizer_loader
+        except Exception as exc:
+            self.device = 'cpu'
+            self._init_fallback(f"PyTorch/Transformers unavailable: {exc}")
+            return
+
         if device == 'auto':
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
@@ -62,12 +107,16 @@ class ConfidenceGatedRouter:
         logger.info(f"Loading model from: {model_name}")
         logger.info(f"Device: {self.device}")
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_name, num_labels=len(CATEGORY_MAP),
-            low_cpu_mem_usage=True
-        ).to(self.device)
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        try:
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_name, num_labels=len(CATEGORY_MAP),
+                low_cpu_mem_usage=True
+            ).to(self.device)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except Exception as exc:
+            self._init_fallback(f"Transformer load failed: {exc}")
+            return
         
         self.model.eval()
         import gc
@@ -80,12 +129,47 @@ class ConfidenceGatedRouter:
 
         logger.info(f"Model loaded successfully. MC Passes: {self.mc_passes} | Params: {sum(p.numel() for p in self.model.parameters()):,}")
 
+    def _init_fallback(self, reason: str):
+        self.model = _FallbackModel()
+        self.tokenizer = _FallbackTokenizer()
+        self.mc_passes = 1
+        self._fallback_mode = True
+        logger.warning(
+            "ConfidenceGatedRouter using lightweight fallback. %s",
+            reason,
+        )
 
     def _activate_dropout(self):
         """Keep Dropout active at inference time for MC sampling."""
+        if self._fallback_mode or torch is None:
+            return
         for m in self.model.modules():
             if isinstance(m, torch.nn.Dropout):
                 m.train()
+
+    def _fallback_predict(self, text: str) -> Tuple[float, float, int, np.ndarray, np.ndarray]:
+        text_low = (text or '').lower()
+        scores = np.ones(len(CATEGORY_MAP), dtype=float) * 0.2
+        keyword_map = {
+            0: ['invoice', 'billing', 'refund', 'charge', 'payment', 'subscription'],
+            1: ['error', 'bug', 'crash', '500', 'api', 'broken', 'not working'],
+            2: ['login', 'password', 'account', 'permission', 'sso', 'user'],
+            3: ['feature', 'add', 'request', 'enhancement', 'dark mode'],
+            4: ['gdpr', 'compliance', 'legal', 'audit', 'privacy'],
+            5: ['setup', 'configure', 'onboard', 'getting started', 'import'],
+            6: ['question', 'how do i', 'information', 'help'],
+            7: ['cancel', 'churn', 'competitor', 'switching', 'terminate', 'frustrated'],
+        }
+
+        for idx, keywords in keyword_map.items():
+            scores[idx] += sum(1.0 for keyword in keywords if keyword in text_low)
+
+        probs = scores / scores.sum()
+        confidence = float(probs.max())
+        entropy = float(-np.sum(probs * np.log(probs + 1e-9)))
+        pred_class = int(probs.argmax())
+        std_p = np.zeros(len(CATEGORY_MAP), dtype=float)
+        return confidence, entropy, pred_class, probs, std_p
 
     def mc_predict(self, text: str, n_passes: Optional[int] = None) -> Tuple[float, float, int, np.ndarray, np.ndarray]:
         """
@@ -101,6 +185,9 @@ class ConfidenceGatedRouter:
         """
         if n_passes is None:
             n_passes = self.mc_passes
+
+        if self._fallback_mode:
+            return self._fallback_predict(text)
 
         inputs = self.tokenizer(
             text, return_tensors='pt',

@@ -156,7 +156,7 @@ class TicketValidator:
         total_words = len(words)
         gibberish_ratio = len(gibberish_matches) / max(total_words, 1)
 
-        if gibberish_ratio > 0.4:
+        if gibberish_ratio >= 0.4:
             return self._invalid(
                 error_type='gibberish',
                 response="We couldn't quite understand your message. "
@@ -251,4 +251,3 @@ if __name__ == '__main__':
         print(f"Expected: {expected}")
         print(f"Got:      {result['error_type'] or 'valid'}")
         print(f"Response: {result['response']}")
-

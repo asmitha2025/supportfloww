@@ -151,6 +151,9 @@
                     <button class="preset-btn" data-text="My invoice from last month shows $299 but my plan is $199. Please fix this billing error immediately.">Billing</button>
                     <button class="preset-btn" data-text="The API endpoint /v2/export returns a 500 error when batch size exceeds 1000 records. Stack trace attached.">Technical</button>
                     <button class="preset-btn" data-text="Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.">Ambiguous</button>
+                    <button class="preset-btn" data-text="Our launch is in 30 minutes and export is not working. The client is waiting on this before signing.">Launch Risk</button>
+                    <button class="preset-btn" data-text="Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.">Polite Risk</button>
+                    <button class="preset-btn" data-text="No rush, but can you tell me how to update the invoice email before tomorrow?">No Rush</button>
                 </div>
                 <button id="route-btn" class="btn btn-primary btn-full" onclick="routeTicket()">
                     ⚡ Route Ticket
@@ -224,10 +227,12 @@
                         <div class="signal-card">
                             <div class="signal-label">Sentiment</div>
                             <div class="signal-value" id="sentiment-value">—</div>
+                            <div class="signal-subvalue" id="sentiment-score">—</div>
                         </div>
                         <div class="signal-card">
                             <div class="signal-label">Urgency</div>
                             <div class="signal-value" id="urgency-value">—</div>
+                            <div class="signal-subvalue" id="urgency-score">—</div>
                         </div>
                         <div class="signal-card">
                             <div class="signal-label">Latency</div>
@@ -235,13 +240,30 @@
                         </div>
                     </div>
 
+                    <div class="signal-evidence-grid" id="signal-evidence-grid">
+                        <div class="evidence-panel">
+                            <div class="evidence-header">
+                                <span class="material-symbols-outlined">priority_high</span>
+                                Urgency Evidence
+                            </div>
+                            <div class="evidence-list" id="urgency-evidence-list"></div>
+                        </div>
+                        <div class="evidence-panel">
+                            <div class="evidence-header">
+                                <span class="material-symbols-outlined">psychology</span>
+                                Sentiment Evidence
+                            </div>
+                            <div class="evidence-list" id="sentiment-evidence-list"></div>
+                        </div>
+                    </div>
+
                     <div class="result-reason" id="result-reason"></div>
 
-                    <!-- SHAP Explanation -->
+                    <!-- Decision explanation -->
                     <div class="explanation-box" id="explanation-box" style="display:none">
                         <div class="explain-header">
                             <span class="material-symbols-outlined">analytics</span>
-                            Decision Interpretability (SHAP)
+                            Decision Evidence
                         </div>
                         <div class="explain-text" id="explain-text"></div>
                         <div class="explain-legend">
@@ -252,7 +274,7 @@
 
                     <button id="explain-btn" class="btn btn-ghost btn-full" style="margin-top: 10px; display: none;" onclick="explainDecision()">
                         <span class="material-symbols-outlined btn-icon">query_stats</span>
-                        Analyze Decision (SHAP)
+                        Analyze Decision
                     </button>
                 </div>
 
@@ -516,6 +538,6 @@
         </div>
     </footer>
 
-    <script src="/dashboard/app.js?v=4"></script>
+    <script src="/dashboard/app.js?v=6"></script>
 </body>
 </html>

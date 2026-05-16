@@ -1,6 +1,8 @@
 from huggingface_hub import HfApi
 import os
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 def sync_to_hf():
     # Token and Repo setup
     token = os.getenv("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is not set. Add it as a local environment variable or Space secret.")
     api = HfApi(token=token)
     repo_id = "Asmitha-28/SupportMind"
     repo_type = "space"
@@ -16,7 +20,7 @@ def sync_to_hf():
     logger.info(f"Starting sync to {repo_id}...")
 
     # 1. Upload Core Files
-    core_files = ["requirements.txt", "Dockerfile", "README.md", ".env"]
+    core_files = ["requirements.txt", "Dockerfile", "README.md", ".env.example"]
     for f in core_files:
         if os.path.exists(f):
             try:

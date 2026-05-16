@@ -4,13 +4,13 @@
 ---
 
 ## 1. Executive Summary
-SupportMind is a production-grade ticket routing engine that moves beyond simple classification. It uses an **Ensemble Model** combined with **Uncertainty Quantification** to automate 80%+ of ticket triage while maintaining enterprise-level safety gates for ambiguous or complex customer issues.
+SupportMind is a production-oriented ticket routing engine that moves beyond simple classification. It uses an **Ensemble Model** combined with **Uncertainty Quantification** when the transformer runtime is available, and it reports a transparent sklearn fallback mode for lightweight demos.
 
 ---
 
 ## 2. Machine Learning Core
 ### Ensemble Architecture
-We utilize a weighted soft-voting ensemble:
+The full runtime uses a weighted soft-voting ensemble:
 1.  **Semantic Layer**: DistilBERT (Fine-tuned on support-specific datasets) to capture context and intent.
 2.  **Keyword Layer**: TF-IDF + Logistic Regression to handle explicit technical n-grams and error codes.
 
@@ -19,6 +19,8 @@ To ensure high-precision routing, we implemented:
 *   **Temperature Scaling ($T=0.7$)**: Probabilities are sharpened to reduce background noise in unrelated categories.
 *   **MC Dropout (Monte Carlo)**: During inference, we run multiple passes with active dropout to measure **Predictive Variance**. This allows us to detect when the model is "guessing."
 *   **Shannon Entropy ($H$)**: We measure the information chaos of the output distribution. If $H > 1.2$, the system triggers a **Clarification Gate** instead of routing blindly.
+
+Runtime status is exposed through `GET /model/status` so demos can clearly show whether the transformer ensemble, sklearn fallback, historical memory, LLM clarification, and explainability layers are online.
 
 ---
 

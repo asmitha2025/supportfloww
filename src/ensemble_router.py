@@ -76,6 +76,8 @@ class EnsembleRouter:
         self._bert_router = None
         self._sklearn_pipe = None
         self._bert_available = False
+        self._bert_reason = 'not_loaded'
+        self._sklearn_source = 'unknown'
 
         # IMPORTANT: Load BERT first and do a warmup pass.
         # On Windows, unpickling sklearn before PyTorch's first forward pass
@@ -91,6 +93,17 @@ class EnsembleRouter:
         except Exception as e:
             logger.warning(f"[EnsembleRouter] Could not load Historical Memory Layer: {e}")
             self._memory_layer = None
+
+        self.model_status = {
+            'mode': 'ensemble_transformer_lr' if self._bert_available else 'sklearn_fallback',
+            'bert_available': self._bert_available,
+            'bert_reason': self._bert_reason,
+            'sklearn_source': self._sklearn_source,
+            'model_dir': os.path.relpath(self.model_dir, base),
+            'memory_available': bool(
+                getattr(getattr(self, '_memory_layer', None), 'is_ready', False)
+            ),
+        }
 
         logger.info(
             f"[EnsembleRouter] BERT={'ON' if self._bert_available else 'OFF (fallback)'} | "
@@ -114,19 +127,91 @@ class EnsembleRouter:
             base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             pkl = os.path.join(base, 'models', 'ticket_classifier', 'sklearn_router.pkl')
         if not os.path.exists(pkl):
-            raise FileNotFoundError(
-                f"sklearn_router.pkl not found. "
-                "Run: python train_baseline.py"
+            logger.warning(
+                "[EnsembleRouter] sklearn_router.pkl not found. "
+                "Using embedded synthetic fallback model."
             )
+            self._sklearn_pipe = self._build_embedded_sklearn()
+            self._sklearn_source = 'embedded_synthetic'
+            return
         with open(pkl, 'rb') as f:
             self._sklearn_pipe = pickle.load(f)
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self._sklearn_source = os.path.relpath(pkl, base)
         logger.info(f"[EnsembleRouter] sklearn pipeline loaded from {pkl}.")
 
+    def _build_embedded_sklearn(self):
+        """Build a tiny in-memory classifier so clean clones and CI still run."""
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+
+        examples = {
+            'billing': [
+                'invoice is wrong', 'refund request', 'payment failed',
+                'billing charge incorrect', 'subscription price changed',
+            ],
+            'technical_support': [
+                'api returns 500 error', 'export is broken', 'dashboard crash',
+                'integration timeout', 'feature not working',
+            ],
+            'account_management': [
+                'reset password', 'add user account', 'sso login issue',
+                'change admin permission', 'locked out of account',
+            ],
+            'feature_request': [
+                'please add dark mode', 'new feature request',
+                'need custom dashboard', 'enhancement idea',
+            ],
+            'compliance_legal': [
+                'gdpr data request', 'soc 2 audit report',
+                'data processing agreement', 'privacy compliance',
+            ],
+            'onboarding': [
+                'help with setup', 'new user onboarding',
+                'configure integration', 'getting started guide',
+            ],
+            'general_inquiry': [
+                'how do i use this', 'pricing question', 'where is documentation',
+                'do you offer a demo',
+            ],
+            'churn_risk': [
+                'cancel my account', 'switching to competitor',
+                'very frustrated', 'not renewing contract',
+            ],
+        }
+
+        texts, labels = [], []
+        for category, samples in examples.items():
+            for sample in samples:
+                texts.append(sample)
+                labels.append(CATEGORY_REVERSE[category])
+
+        pipeline = Pipeline([
+            ('tfidf', TfidfVectorizer(stop_words='english', ngram_range=(1, 2))),
+            ('clf', LogisticRegression(class_weight='balanced', max_iter=1000)),
+        ])
+        pipeline.fit(texts, labels)
+        return pipeline
+
     def _load_bert(self, device: str):
-        """Bypass BERT loading to prevent local memory crashes."""
-        self._bert_available = False
-        logger.warning("[EnsembleRouter] BERT loading bypassed to prevent WinError 1455. Running in sklearn-only mode.")
-        return
+        """Load transformer router when the runtime is configured for it."""
+        disable_transformer = os.getenv('SUPPORTMIND_DISABLE_TRANSFORMER', '0') == '1'
+        force_transformer = os.getenv('SUPPORTMIND_FORCE_TRANSFORMER', '0') == '1'
+
+        if disable_transformer:
+            self._bert_reason = 'disabled_by_SUPPORTMIND_DISABLE_TRANSFORMER'
+            logger.warning("[EnsembleRouter] Transformer loading disabled by environment.")
+            return
+
+        if os.name == 'nt' and not force_transformer:
+            self._bert_reason = 'disabled_on_windows_set_SUPPORTMIND_FORCE_TRANSFORMER_to_enable'
+            logger.warning(
+                "[EnsembleRouter] Transformer loading disabled on Windows by default "
+                "to avoid native PyTorch/safetensors crashes. Set "
+                "SUPPORTMIND_FORCE_TRANSFORMER=1 to enable it."
+            )
+            return
 
         import json, traceback as tb
         model_bin  = os.path.join(self.model_dir, 'pytorch_model.bin')
@@ -138,6 +223,7 @@ class EnsembleRouter:
         )
 
         if not bert_ready:
+            self._bert_reason = 'weights_not_found'
             logger.warning(
                 "[EnsembleRouter] DistilBERT weights not found — running sklearn-only."
             )
@@ -148,6 +234,7 @@ class EnsembleRouter:
             with open(config) as f:
                 cfg = json.load(f)
             if cfg.get('model_type') == 'baseline_sklearn':
+                self._bert_reason = 'baseline_stub_config'
                 logger.warning("[EnsembleRouter] config.json is baseline stub — skipping BERT.")
                 return
         except Exception:
@@ -156,14 +243,17 @@ class EnsembleRouter:
         try:
             from confidence_router import ConfidenceGatedRouter
             self._bert_router = ConfidenceGatedRouter(self.model_dir, device=device)
-            self._bert_available = True
+            self._bert_available = not getattr(self._bert_router, '_fallback_mode', False)
+            self._bert_reason = 'loaded' if self._bert_available else 'confidence_router_fallback'
             gc.collect()
-            logger.info(f"[EnsembleRouter] {self._bert_router.model.config.model_type.upper()} loaded successfully.")
+            if self._bert_available:
+                logger.info(f"[EnsembleRouter] {self._bert_router.model.config.model_type.upper()} loaded successfully.")
         except (Exception, OSError) as e:
             logger.error(f"[EnsembleRouter] BERT load failed (likely memory constraint): {e}")
             # Ensure we don't leave a half-initialized router
             self._bert_router = None
             self._bert_available = False
+            self._bert_reason = f'load_failed: {type(e).__name__}'
             gc.collect()
 
     # ── Prediction ───────────────────────────────────────────────────────────
@@ -219,16 +309,21 @@ class EnsembleRouter:
         # If text contains specific strong keywords for a category, 
         # give that category a small 'calibration boost'.
         reinforce_map = {
-            'billing': ['invoice', 'refund', 'charge', 'payment'],
-            'technical_support': ['error', 'bug', 'crash', '500', 'api'],
-            'churn_risk': ['cancel', 'leaving', 'competitor', 'terminate'],
-            'onboarding': ['setup', 'configure', 'getting started', 'new user'],
+            'billing': ['invoice', 'refund', 'charge', 'payment', 'billing'],
+            'technical_support': ['error', 'bug', 'crash', '500', 'api', 'broken', 'not working'],
+            'account_management': ['login', 'password', 'reset', 'account', 'permission', 'access', 'sso', 'user'],
+            'feature_request': ['feature', 'add', 'request', 'enhancement', 'dark mode', 'new capability', 'could you add'],
+            'compliance_legal': ['gdpr', 'compliance', 'legal', 'audit', 'privacy'],
+            'churn_risk': ['cancel', 'leaving', 'competitor', 'terminate', 'switching'],
+            'onboarding': ['setup', 'configure', 'getting started', 'new user', 'import'],
         }
         text_low = ticket_text.lower()
         for cat, kws in reinforce_map.items():
-            if any(kw in text_low for kw in kws):
+            hit_count = sum(1 for kw in kws if kw in text_low)
+            if hit_count:
                 idx = CATEGORY_REVERSE[cat]
-                blended_sharp[idx] *= 1.15  # 15% boost
+                blended_sharp[idx] *= 1.0 + min(0.45, hit_count * 0.12)
+                blended_sharp[idx] += min(0.12, hit_count * 0.03)
         
         # Re-normalise after boost
         blended_sharp = blended_sharp / blended_sharp.sum()

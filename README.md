@@ -120,6 +120,14 @@ uvicorn api:app --host 0.0.0.0 --port 7860 --reload
 ```
 Once the server is running, navigate to `http://localhost:7860/` in your web browser to access the **Live SupportMind Dashboard**.
 
+### Runtime Mode
+SupportMind exposes the active runtime at `GET /model/status`.
+
+- On Windows, the API defaults to the sklearn fallback router to avoid native PyTorch/safetensors crashes during demos.
+- On Linux/Hugging Face Spaces, the transformer ensemble is attempted when model files are present.
+- To force transformer loading locally after verifying your machine can support it, set `SUPPORTMIND_FORCE_TRANSFORMER=1`.
+- To explicitly run lightweight mode anywhere, set `SUPPORTMIND_DISABLE_TRANSFORMER=1`.
+
 ---
 
 ## 🧠 Training the Models

@@ -6,6 +6,9 @@ load_dotenv()
 
 def deploy():
     token = os.getenv("HF_TOKEN")
+    if not token:
+        print("HF_TOKEN is not set. Add it as a local environment variable or Space secret.")
+        sys.exit(1)
     api = HfApi(token=token)
 
     try:
@@ -41,7 +44,7 @@ def deploy():
                 "requirements.txt",
                 "Dockerfile",
                 "README.md",
-                ".env"
+                ".env.example"
             ]
         )
         print(f"✅ Code successfully deployed! Now the models are in the root on HF, we need to move them to the correct folders.")

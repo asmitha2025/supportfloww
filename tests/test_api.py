@@ -30,6 +30,56 @@ def test_route_endpoint():
     # Ensure SLA breach probability is returned
     assert "sla_breach_probability" in data
 
+def test_clear_ticket_does_not_always_clarify():
+    payload = {
+        "text": "My invoice from last month shows wrong amount please fix this billing error",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] in ("route", "escalate")
+    assert "clarification" not in data
+
+def test_direct_feature_request_routes_without_clarification():
+    payload = {
+        "text": "Could you add dark mode to the dashboard in a future release?",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "route"
+    assert data["top_category"] == "feature_request"
+    assert "clarification" not in data
+
+def test_password_reset_is_support_request():
+    payload = {
+        "text": "I forgot my password and need help resetting access to my account.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "route"
+    assert data["top_category"] == "account_management"
+
+def test_route_applies_clarification_answer():
+    payload = {
+        "text": "Export is broken and the invoice looks incorrect.",
+        "customer_id": "test_123",
+        "clarification_choice": "Billing or invoice issue",
+        "clarification_target": "billing",
+        "clarification_question_id": "Q001"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "route"
+    assert data["top_category"] == "billing"
+    assert data["clarification_applied"] is True
+    assert "clarification" not in data
+
 def test_sla_predict_endpoint():
     payload = {
         "text_complexity_score": 10.5,
@@ -69,3 +119,27 @@ def test_metrics_endpoint():
     data = response.json()
     assert "total_requests" in data
     assert "routing_stats" in data
+    assert "model_status" in data
+
+def test_explain_endpoint():
+    response = client.post(
+        "/explain",
+        json={
+            "text": "The invoice charge is wrong and I need a refund.",
+            "target_class": "billing"
+        }
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "tokens" in data
+    assert "values" in data
+    assert len(data["tokens"]) == len(data["values"])
+    assert data["source"] in ("shap_transformer", "heuristic_keywords")
+
+def test_model_status_endpoint():
+    response = client.get("/model/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "router" in data
+    assert "explainability" in data
+    assert data["explainability"] in ("shap_transformer", "heuristic_keywords")

@@ -5,6 +5,8 @@ load_dotenv()
 
 def fix_structure():
     token = os.getenv("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is not set. Add it as a local environment variable or Space secret.")
     api = HfApi(token=token)
     repo_id = "Asmitha-28/SupportMind"
     repo_type = "space"

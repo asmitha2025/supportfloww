@@ -24,6 +24,18 @@ except ImportError:
 
 GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama3-8b-8192')
 LLM_ENABLED = os.getenv('LLM_ENABLED', 'true').lower() == 'true'
+LLM_TIMEOUT_SECONDS = float(os.getenv('LLM_TIMEOUT_SECONDS', '2.5'))
+
+DEFAULT_CATEGORY_ORDER = [
+    'billing',
+    'technical_support',
+    'account_management',
+    'feature_request',
+    'compliance_legal',
+    'onboarding',
+    'general_inquiry',
+    'churn_risk',
+]
 
 
 class ClarificationEngine:
@@ -53,10 +65,15 @@ class ClarificationEngine:
 
         # Groq client
         self.groq_client = None
+        self.llm_timeout = LLM_TIMEOUT_SECONDS
         if HAS_GROQ and LLM_ENABLED:
             api_key = os.getenv('GROQ_API_KEY')
             if api_key:
-                self.groq_client = Groq(api_key=api_key)
+                self.groq_client = Groq(
+                    api_key=api_key,
+                    timeout=self.llm_timeout,
+                    max_retries=0,
+                )
                 logger.info("Groq LLM client initialized")
             else:
                 logger.warning("GROQ_API_KEY not set. Using templates only.")
@@ -117,6 +134,7 @@ Respond with ONLY this JSON, no other text:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
                 temperature=0.3,
+                timeout=self.llm_timeout,
             )
 
             raw = response.choices[0].message.content.strip()
@@ -139,6 +157,7 @@ Respond with ONLY this JSON, no other text:
                 'question_id': 'LLM_DYNAMIC',
                 'question_text': result['question'],
                 'options': [result['option_a'], result['option_b']],
+                'option_targets': top_two_classes,
                 'expected_gain': 0.75,
                 'relevant_classes': top_two_classes,
                 'source': 'llm_groq',
@@ -199,11 +218,19 @@ Respond with ONLY this JSON, no other text:
         # ── Layer 2: Template bank ────────────────────
         asked_ids = asked_ids or []
 
+        top_pair = set(top_two_classes[:2])
         relevant = [
             q for q in self.bank
-            if any(c in q.get('relevant_classes', []) for c in top_two_classes)
+            if top_pair.issubset(set(q.get('relevant_classes', [])))
             and q['id'] not in asked_ids
         ]
+
+        if not relevant:
+            relevant = [
+                q for q in self.bank
+                if any(c in q.get('relevant_classes', []) for c in top_two_classes)
+                and q['id'] not in asked_ids
+            ]
 
         if not relevant:
             relevant = [q for q in self.bank if q['id'] not in asked_ids]
@@ -231,11 +258,40 @@ Respond with ONLY this JSON, no other text:
             'question_id': best_q['id'],
             'question_text': best_q['text'],
             'options': best_q.get('options', []),
+            'option_targets': self._infer_option_targets(best_q),
             'expected_gain': round(best_gain, 4),
             'relevant_classes': best_q.get('relevant_classes', []),
             'source': 'template',
             'fallback': False,
         }
+
+    def generate_question(self,
+                          ticket_text: str,
+                          current_probs: np.ndarray,
+                          top_two_classes: Optional[List[str]] = None,
+                          asked_ids: Optional[List[str]] = None) -> Dict:
+        """Compatibility wrapper used by the API layer."""
+        probs = np.asarray(current_probs, dtype=float)
+        if probs.ndim != 1 or probs.size == 0:
+            probs = np.ones(len(DEFAULT_CATEGORY_ORDER), dtype=float)
+        probs = probs / (probs.sum() + 1e-9)
+
+        if top_two_classes is None:
+            top_indices = np.argsort(probs)[::-1][:2]
+            top_two_classes = [
+                DEFAULT_CATEGORY_ORDER[i]
+                for i in top_indices
+                if i < len(DEFAULT_CATEGORY_ORDER)
+            ]
+            if len(top_two_classes) < 2:
+                top_two_classes = DEFAULT_CATEGORY_ORDER[:2]
+
+        return self.select_question(
+            probs,
+            top_two_classes,
+            asked_ids=asked_ids,
+            ticket_text=ticket_text,
+        )
 
     def get_all_questions(self) -> List[Dict]:
         return self.bank
@@ -245,6 +301,35 @@ Respond with ONLY this JSON, no other text:
             if q['id'] == question_id:
                 return q
         return None
+
+    def _infer_option_targets(self, question: Dict) -> List[str]:
+        options = question.get('options', [])
+        relevant = question.get('relevant_classes', [])
+        targets = []
+
+        keyword_targets = [
+            ('billing', ['billing', 'invoice', 'payment', 'charge', 'refund', 'credit', 'pricing', 'cost', 'bill']),
+            ('technical_support', ['software', 'error', 'technical', 'broken', 'malfunction', 'functionality', 'api', 'integration', 'performance', 'specific issue', 'data movement', 'feature is broken']),
+            ('account_management', ['account', 'plan', 'subscription', 'administrator', 'admin', 'user management', 'regular user', 'settings']),
+            ('feature_request', ['new capability', 'feature', 'request', 'enhancement', 'doesn\'t exist']),
+            ('compliance_legal', ['compliance', 'regulatory', 'audit', 'gdpr', 'security', 'data affected', 'data/gdpr']),
+            ('onboarding', ['new user', 'onboarding', 'guidance', 'training', 'walkthrough', 'setting up']),
+            ('churn_risk', ['continuing', 'switching', 'evaluating options', 'mostly negative', 'concerns about continuing']),
+            ('general_inquiry', ['general', 'guidance', 'not urgent', 'no specific deadline', 'positive']),
+        ]
+
+        for i, option in enumerate(options):
+            option_low = option.lower()
+            target = None
+            for category, keywords in keyword_targets:
+                if any(keyword in option_low for keyword in keywords):
+                    target = category
+                    break
+            if target is None and i < len(relevant):
+                target = relevant[i]
+            targets.append(target or (relevant[0] if relevant else 'general_inquiry'))
+
+        return targets
 
     def _default_bank(self) -> list:
         return [

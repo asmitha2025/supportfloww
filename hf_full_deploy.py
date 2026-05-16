@@ -3,12 +3,14 @@ import os
 
 def full_deploy():
     token = os.getenv("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is not set. Add it as a local environment variable or Space secret.")
     api = HfApi(token=token)
     repo_id = "Asmitha-28/SupportMind"
     repo_type = "space"
 
     print("Uploading root files...")
-    root_files = ["requirements.txt", "Dockerfile", "README.md", ".env"]
+    root_files = ["requirements.txt", "Dockerfile", "README.md", ".env.example"]
     for f in root_files:
         if os.path.exists(f):
             try:

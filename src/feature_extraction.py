@@ -16,11 +16,111 @@ except ImportError:
 
 CRITICAL_URGENCY = [
     'crash', 'blocked', 'down', 'failing', 'cannot access', 'production issue',
-    'outage', 'emergency', 'critical', 'urgent', 'immediately', 'blocking',
+    'outage', 'emergency', 'critical', 'urgent', 'immediately', 'blocking', 'locked out',
 ]
 
 GENERAL_URGENCY = [
-    'asap', 'deadline', 'sla', 'escalate', 'priority', 'time-sensitive', 'showstopper',
+    'asap', 'deadline', 'sla', 'escalate', 'priority', 'time-sensitive', 'showstopper', 'presentation',
+]
+
+CONTEXTUAL_URGENCY_SIGNALS = [
+    (
+        'business_impact',
+        0.30,
+        [
+            r'\b(?:affecting|impacting|blocking)\s+(?:our\s+)?(?:customers|users|team|business|operations|sales|revenue|payroll|launch|production)\b',
+            r'\b(?:customers?|clients?)\s+(?:(?:are|is)\s+)?(?:waiting|blocked|affected|unable)\b',
+            r"\b(?:cannot|can't|unable to)\s+(?:process|ship|launch|serve|sell|invoice|onboard|work|access)\b",
+        ],
+    ),
+    (
+        'deadline_pressure',
+        0.25,
+        [
+            r'\b(?:in|within)\s+\d+\s*(?:min|mins|minutes|hour|hours|hrs|days?)\b',
+            r'\b(?:by|before)\s+(?:today|tomorrow|eod|end of day|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+            r'\b(?:launch|demo|go-live|renewal|payroll|board meeting|presentation)\b',
+        ],
+    ),
+    (
+        'production_outage',
+        0.40,
+        [
+            r'\bproduction\s+(?:is\s+)?(?:down|blocked|broken|failing|impacted)\b',
+            r'\b(?:all|multiple|many)\s+(?:users|customers|accounts|teams)\s+(?:are\s+)?(?:affected|blocked|down|unable)\b',
+            r'\b(?:system|service|platform|dashboard|api)\s+(?:is\s+)?(?:down|unavailable|not responding)\b',
+        ],
+    ),
+    (
+        'access_loss',
+        0.25,
+        [
+            r"\b(?:locked out|cannot access|can't access|unable to access|access is blocked)\b",
+            r'\b(?:login|sso|authentication)\s+(?:is\s+)?(?:broken|failing|down|not working)\b',
+        ],
+    ),
+    (
+        'repeat_issue',
+        0.20,
+        [
+            r'\b(?:again|still|keeps?|repeated|recurring)\b',
+            r'\b(?:second|third|fourth)\s+time\b',
+            r'\b(?:raised|reported|opened)\s+(?:this\s+)?(?:before|multiple times|again)\b',
+        ],
+    ),
+]
+
+DEESCALATION_PATTERNS = [
+    r'\bnot urgent\b',
+    r'\bno rush\b',
+    r'\bwhenever you can\b',
+    r'\bwhen you have time\b',
+]
+
+NEGATIVE_SENTIMENT_SIGNALS = [
+    (
+        'frustration',
+        -0.30,
+        [
+            r'\bfrustrat(?:ed|ing|ion)\b',
+            r'\bnot happy\b',
+            r'\bdisappoint(?:ed|ing|ment)\b',
+            r'\bthis is becoming difficult\b',
+            r'\bnot ideal\b',
+            r'\bunacceptable\b',
+            r'\bterrible\b',
+            r'\bawful\b',
+        ],
+    ),
+    (
+        'trust_risk',
+        -0.25,
+        [
+            r'\b(?:losing|lost)\s+(?:trust|confidence)\b',
+            r'\b(?:considering|thinking about)\s+(?:switching|leaving|cancelling|canceling)\b',
+        ],
+    ),
+    (
+        'polite_negative',
+        -0.22,
+        [
+            r'\b(?:this|it)\s+is\s+(?:affecting|impacting|blocking)\b',
+            r'\b(?:could you please|please)\b.*\b(?:fix|resolve|help)\b.*\b(?:blocking|affecting|stuck|broken|failing)\b',
+            r'\b(?:becoming|getting)\s+(?:difficult|hard|painful)\b',
+        ],
+    ),
+]
+
+POSITIVE_SENTIMENT_SIGNALS = [
+    (
+        'appreciation',
+        0.08,
+        [
+            r'\bthanks?\b',
+            r'\bthank you\b',
+            r'\bappreciate\b',
+        ],
+    ),
 ]
 
 COMPLEXITY_KEYWORDS = [
@@ -29,6 +129,14 @@ COMPLEXITY_KEYWORDS = [
 ]
 
 MULTI_INTENT_KEYWORDS = ['also', 'and', 'additionally', 'moreover', 'furthermore', 'plus']
+
+PRODUCT_KEYWORDS = {
+    'dashboard': 'Dashboard',
+    'api': 'API',
+    'sso': 'SSO',
+    'export': 'Export',
+    'integration': 'Integration'
+}
 
 
 class FeatureExtractor:
@@ -54,12 +162,18 @@ class FeatureExtractor:
         words = text.split()
         sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
 
-        urg_flags = self._urgency_flags(text_lower)
+        urgency = self._urgency_details(text_lower)
+        sentiment = self._sentiment_details(text)
         
         return {
-            'sentiment_score': self._sentiment(text),
-            'urgency_flags': urg_flags,
-            'urgency_score': self._calculate_urgency(text_lower),
+            'sentiment_score': sentiment['score'],
+            'sentiment_label': sentiment['label'],
+            'sentiment_evidence': sentiment['evidence'],
+            'sentiment_raw_score': sentiment['raw_score'],
+            'urgency_flags': urgency['flags'],
+            'urgency_score': urgency['score'],
+            'urgency_level': urgency['level'],
+            'urgency_evidence': urgency['evidence'],
             'complexity_score': self._calculate_complexity(text_lower),
             'product_entities': self._product_entities(text_lower),
             'text_complexity_score': self._flesch_kincaid(words, sentences),
@@ -74,27 +188,108 @@ class FeatureExtractor:
         }
 
     def _sentiment(self, text: str) -> float:
-        if self.sentiment_analyzer:
-            return self.sentiment_analyzer.polarity_scores(text)['compound']
-        neg = ['bad','terrible','broken','frustrated','angry','worst','hate','useless']
-        pos = ['good','great','love','excellent','amazing','helpful','thanks']
+        return self._sentiment_details(text)['score']
+
+    def _sentiment_details(self, text: str) -> Dict:
         tl = text.lower()
-        n = sum(1 for w in neg if w in tl)
-        p = sum(1 for w in pos if w in tl)
-        return (p - n) / max(p + n, 1)
+        if self.sentiment_analyzer:
+            score = self.sentiment_analyzer.polarity_scores(text)['compound']
+        else:
+            neg = ['bad','terrible','broken','frustrated','angry','worst','hate','useless', 'invalid', 'locked out']
+            pos = ['good','great','love','excellent','amazing','helpful','thanks']
+            n = sum(1 for w in neg if w in tl)
+            p = sum(1 for w in pos if w in tl)
+            score = (p - n) / max(p + n, 1)
+
+        raw_score = score
+        adjustment, evidence = self._score_pattern_signals(tl, NEGATIVE_SENTIMENT_SIGNALS)
+        positive_adjustment, positive_evidence = self._score_pattern_signals(tl, POSITIVE_SENTIMENT_SIGNALS)
+
+        # Polite support messages often include "thanks" while still expressing risk.
+        if evidence:
+            positive_adjustment *= 0.35
+
+        if 'locked out' in tl:
+            adjustment -= 0.35
+            evidence.append('access_sentiment: locked out')
+        if 'invalid' in tl:
+            adjustment -= 0.20
+            evidence.append('error_sentiment: invalid')
+
+        score = max(min(score + adjustment + positive_adjustment, 1.0), -1.0)
+
+        if score <= -0.55 or any(e.startswith(('frustration', 'trust_risk')) for e in evidence):
+            label = 'frustrated'
+        elif score <= -0.20 or evidence:
+            label = 'concerned'
+        elif score >= 0.30:
+            label = 'positive'
+        else:
+            label = 'neutral'
+
+        return {
+            'score': round(score, 4),
+            'raw_score': round(raw_score, 4),
+            'label': label,
+            'evidence': evidence + positive_evidence,
+        }
 
     def _urgency_flags(self, text_lower: str) -> list:
-        found = [kw for kw in CRITICAL_URGENCY if kw in text_lower]
-        found.extend([kw for kw in GENERAL_URGENCY if kw in text_lower])
-        return list(set(found))
+        return self._urgency_details(text_lower)['flags']
 
     def _calculate_urgency(self, text_lower: str) -> float:
         """Operational danger score."""
-        crit_count = sum(1 for kw in CRITICAL_URGENCY if kw in text_lower)
-        gen_count = sum(1 for kw in GENERAL_URGENCY if kw in text_lower)
-        
-        score = (crit_count * 0.4) + (gen_count * 0.15)
-        return min(max(score, 0.0), 1.0)
+        return self._urgency_details(text_lower)['score']
+
+    def _urgency_details(self, text_lower: str) -> Dict:
+        critical_hits = [kw for kw in CRITICAL_URGENCY if kw in text_lower]
+        general_hits = [kw for kw in GENERAL_URGENCY if kw in text_lower]
+        contextual_score, contextual_evidence = self._score_pattern_signals(
+            text_lower,
+            CONTEXTUAL_URGENCY_SIGNALS,
+        )
+
+        evidence = []
+        evidence.extend([f'explicit_critical: {kw}' for kw in critical_hits])
+        evidence.extend([f'explicit_general: {kw}' for kw in general_hits])
+        evidence.extend(contextual_evidence)
+
+        score = (len(critical_hits) * 0.25) + (len(general_hits) * 0.12) + contextual_score
+        if any(re.search(p, text_lower) for p in DEESCALATION_PATTERNS):
+            score = min(score, 0.35)
+            evidence.append('deescalation: no immediate pressure')
+
+        score = round(min(max(score, 0.0), 1.0), 4)
+
+        if score >= 0.75:
+            level = 'critical'
+        elif score >= 0.50:
+            level = 'high'
+        elif score >= 0.25:
+            level = 'medium'
+        else:
+            level = 'low'
+
+        return {
+            'score': score,
+            'level': level,
+            'flags': sorted(set(critical_hits + general_hits + [
+                e.split(':', 1)[0] for e in contextual_evidence
+            ])),
+            'evidence': evidence,
+        }
+
+    def _score_pattern_signals(self, text_lower: str, signal_specs: list) -> tuple:
+        score = 0.0
+        evidence = []
+        for label, weight, patterns in signal_specs:
+            for pattern in patterns:
+                match = re.search(pattern, text_lower)
+                if match:
+                    score += weight
+                    evidence.append(f'{label}: {match.group(0)}')
+                    break
+        return score, evidence
 
     def _calculate_complexity(self, text_lower: str) -> float:
         """Implementation difficulty score."""

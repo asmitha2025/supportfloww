@@ -16,6 +16,8 @@ def test_select_question():
     result = engine.select_question(probs, ['billing', 'technical_support'])
     assert 'question_text' in result
     assert 'expected_gain' in result
+    assert 'option_targets' in result
+    assert len(result['option_targets']) == len(result['options'])
     assert result['expected_gain'] > 0
 
 def test_info_gain_positive():

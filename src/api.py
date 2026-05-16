@@ -35,8 +35,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ticket_validator import TicketValidator
 try:
     from interpretability import SupportMindExplainer
-except OSError as e:
-    print(f"Failed to load interpretability (PyTorch WinError 1455): {e}")
+except Exception as e:
+    print(f"Failed to load optional interpretability module: {e}")
     SupportMindExplainer = None
 
 logging.basicConfig(level=logging.INFO)
@@ -49,10 +49,16 @@ app = FastAPI(
     version='1.0.0',
 )
 
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOW_ORIGINS', '*').split(',')
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials='*' not in allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -67,8 +73,64 @@ _validator = None
 _explainer = None
 _stats = {
     'total_routed': 0, 'total_clarified': 0, 'total_escalated': 0,
+    'total_multi_route': 0,
     'total_requests': 0, 'start_time': datetime.now().isoformat(),
 }
+
+CATEGORY_NAMES = [
+    'billing',
+    'technical_support',
+    'account_management',
+    'feature_request',
+    'compliance_legal',
+    'onboarding',
+    'general_inquiry',
+    'churn_risk',
+]
+CATEGORY_INDEX = {category: idx for idx, category in enumerate(CATEGORY_NAMES)}
+
+CATEGORY_SIGNAL_PATTERNS = {
+    'billing': [
+        r'\b(?:invoice|billing|refund|charge|payment|paid|duplicate payment|credit)\b',
+    ],
+    'technical_support': [
+        r'\b(?:error|bug|crash|broken|failing|not working|api|http\s*\d{3}|500|timeout|integration)\b',
+    ],
+    'account_management': [
+        r'\b(?:password|login|log in|locked out|reset|permission|access|account|sso|user role|admin)\b',
+    ],
+    'feature_request': [
+        r'\b(?:feature request|new feature|new capability|enhancement|could you add|can you add|please add|dark mode|support for)\b',
+    ],
+    'compliance_legal': [
+        r'\b(?:gdpr|compliance|legal|audit|privacy|dpa|data processing|regulatory)\b',
+    ],
+    'onboarding': [
+        r'\b(?:setup|set up|configure|getting started|onboard|new user|import data|walkthrough|training)\b',
+    ],
+    'general_inquiry': [
+        r'\b(?:how do i|how can i|question|where can i|what is|information about)\b',
+    ],
+    'churn_risk': [
+        r'\b(?:cancel|cancelling|canceling|switching|competitor|leaving|terminate|churn)\b',
+    ],
+}
+
+EXPLANATION_KEYWORDS = {
+    'billing': ['invoice', 'billing', 'refund', 'charge', 'payment', 'paid', 'credit', 'subscription', 'plan'],
+    'technical_support': ['error', 'bug', 'crash', 'broken', 'failing', 'working', 'api', 'http', '500', 'timeout', 'integration', 'export'],
+    'account_management': ['password', 'login', 'locked', 'reset', 'permission', 'access', 'account', 'sso', 'user', 'admin'],
+    'feature_request': ['feature', 'request', 'enhancement', 'add', 'support', 'capability', 'roadmap'],
+    'compliance_legal': ['gdpr', 'compliance', 'legal', 'audit', 'privacy', 'dpa', 'regulatory', 'security'],
+    'onboarding': ['setup', 'configure', 'started', 'onboard', 'new', 'import', 'walkthrough', 'training'],
+    'general_inquiry': ['how', 'question', 'where', 'what', 'information', 'demo', 'trial', 'pricing'],
+    'churn_risk': ['cancel', 'switching', 'competitor', 'leaving', 'terminate', 'frustrated', 'renewal'],
+}
+
+SUPPORT_INTENT_PATTERNS = [
+    r'\b(?:please|help|fix|resolve|issue|problem|ticket|support|need help|can you|could you)\b',
+    r"\b(?:forgot|reset|unable|cannot|can't|wrong|incorrect|failed|failing|broken)\b",
+]
 
 @app.on_event("startup")
 def startup_event():
@@ -132,7 +194,7 @@ def get_explainer():
     global _explainer
     if _explainer is None:
         router = get_router()
-        if router.model is not None:
+        if SupportMindExplainer is not None and router.model is not None:
             _explainer = SupportMindExplainer(router.model, router.tokenizer, device='cpu')
     return _explainer
 
@@ -140,6 +202,9 @@ def get_explainer():
 class TicketRequest(BaseModel):
     text: str
     customer_id: Optional[str] = "CUST-DEMO"
+    clarification_choice: Optional[str] = None
+    clarification_target: Optional[str] = None
+    clarification_question_id: Optional[str] = None
 
 class SLARequest(BaseModel):
     text_complexity_score: float = 8.0
@@ -163,6 +228,162 @@ class ClarifyRequest(BaseModel):
 class ExplainRequest(BaseModel):
     text: str
     target_class: Optional[str] = None
+
+
+def _extract_clarification_signal(req: TicketRequest) -> Dict[str, Optional[str]]:
+    target = req.clarification_target
+    choice = req.clarification_choice
+
+    if not target:
+        marker = re.search(
+            r'\[Clarification:\s*(?P<target>[a-z_]+)\s*-\s*(?P<choice>[^\]]+)\]',
+            req.text,
+            flags=re.I,
+        )
+        if marker:
+            target = marker.group('target').lower()
+            choice = choice or marker.group('choice').strip()
+
+    if target:
+        target = target.strip().lower()
+    if target not in CATEGORY_NAMES:
+        return {'target': None, 'choice': choice}
+
+    return {'target': target, 'choice': choice}
+
+
+def _resolved_clarification_result(target: str,
+                                   choice: Optional[str],
+                                   question_id: Optional[str]) -> Dict:
+    all_probs = {
+        category: round(0.10 / (len(CATEGORY_NAMES) - 1), 4)
+        for category in CATEGORY_NAMES
+    }
+    all_probs[target] = 0.90
+    ranking = sorted(all_probs.items(), key=lambda item: item[1], reverse=True)
+    return {
+        'action': 'route',
+        'queue': target,
+        'top_category': target,
+        'confidence': 0.90,
+        'entropy': 0.35,
+        'margin': 0.75,
+        'all_probs': all_probs,
+        'std_probs': {category: 0.0 for category in CATEGORY_NAMES},
+        'category_ranking': ranking,
+        'top_two_classes': [ranking[0][0], ranking[1][0]],
+        'mc_passes': 0,
+        'reason': (
+            f"Clarification answer resolved the ambiguity toward {target}."
+        ),
+        'clarification_applied': True,
+        'clarification_choice': choice,
+        'clarification_question_id': question_id,
+    }
+
+
+def _has_direct_category_signal(text: str, category: str) -> bool:
+    return _category_signal_strength(text, category) > 0
+
+
+def _category_signal_strength(text: str, category: str) -> int:
+    patterns = CATEGORY_SIGNAL_PATTERNS.get(category, [])
+    return sum(
+        len(re.findall(pattern, text, flags=re.I))
+        for pattern in patterns
+    )
+
+
+def _has_support_intent(text: str, features: Dict, result: Dict) -> bool:
+    if any(re.search(pattern, text, flags=re.I) for pattern in SUPPORT_INTENT_PATTERNS):
+        return True
+    if features.get('product_entities') or features.get('has_question'):
+        return True
+    return any(_has_direct_category_signal(text, category) for category in CATEGORY_NAMES)
+
+
+def _can_route_by_direct_signal(result: Dict, text: str) -> bool:
+    if result.get('top_category') == 'compliance_legal':
+        return False
+
+    category = result.get('top_category', '')
+    confidence = result.get('confidence', 0.0)
+    margin = result.get('margin', 0.0)
+    signal_strength = _category_signal_strength(text, category)
+
+    if category == 'feature_request' and signal_strength >= 2 and confidence >= 0.55 and margin >= 0.30:
+        return True
+
+    if (
+        category == 'account_management'
+        and signal_strength >= 3
+        and re.search(r'\b(?:forgot|reset|password|locked out|login|access)\b', text, flags=re.I)
+    ):
+        return True
+
+    if signal_strength >= 3 and confidence >= 0.58 and margin >= 0.20:
+        return True
+
+    return signal_strength > 0 and confidence >= 0.62 and margin >= 0.35
+
+
+def _needs_clarification(result: Dict, text: str) -> bool:
+    confidence = result.get('confidence', 0.0)
+    entropy = result.get('entropy', 0.0)
+    margin = result.get('margin', 0.0)
+
+    # The sklearn fallback keeps more probability mass in non-winning classes,
+    # so entropy alone can be high even when the top class is clearly ahead.
+    if (confidence >= 0.62 and margin >= 0.35) or _can_route_by_direct_signal(result, text):
+        return False
+
+    return margin < 0.22 or (entropy > 1.2 and margin < 0.35)
+
+
+def _heuristic_explanation(text: str, target_class: Optional[str] = None) -> Dict:
+    """Lightweight explainability fallback when transformer SHAP is unavailable."""
+    target = (target_class or '').strip().lower()
+    if target not in CATEGORY_NAMES:
+        try:
+            target = get_router().route(text).get('top_category', 'general_inquiry')
+        except Exception:
+            target = 'general_inquiry'
+
+    keywords = EXPLANATION_KEYWORDS.get(target, [])
+    tokens = re.findall(r"[A-Za-z0-9_@./:-]+|[^\s]", text or '')
+    values = []
+
+    for token in tokens:
+        normalized = token.lower().strip(".,!?;:'\"()[]{}")
+        if not normalized:
+            values.append(0.0)
+            continue
+
+        value = 0.0
+        if normalized in keywords:
+            value += 0.28
+        elif any(normalized in keyword or keyword in normalized for keyword in keywords if len(keyword) > 3):
+            value += 0.16
+
+        for category, other_keywords in EXPLANATION_KEYWORDS.items():
+            if category == target:
+                continue
+            if normalized in other_keywords:
+                value -= 0.08
+                break
+
+        values.append(round(value, 4))
+
+    return {
+        'tokens': tokens,
+        'values': values,
+        'base_value': 0.0,
+        'target_class': CATEGORY_INDEX.get(target, CATEGORY_INDEX['general_inquiry']),
+        'target_category': target,
+        'prediction_value': round(sum(values), 4),
+        'source': 'heuristic_keywords',
+        'note': 'Transformer SHAP is unavailable in the current runtime, so keyword evidence is shown instead.',
+    }
 
 # ── Endpoints ─────────────────────────────────────────────
 @app.post('/route')
@@ -188,25 +409,35 @@ def route_ticket(req: TicketRequest):
         }
 
     clean_text = validation['cleaned_text']
+    clarification_signal = _extract_clarification_signal(req)
     
     # 2. ML Routing & Features
-    router = get_router()
-    result = router.route(clean_text)
-    
     feat_ext = get_features()
     features = feat_ext.extract(clean_text)
+
+    if clarification_signal['target']:
+        result = _resolved_clarification_result(
+            clarification_signal['target'],
+            clarification_signal['choice'],
+            req.clarification_question_id,
+        )
+        is_multi_intent = False
+        unique_intents = []
+    else:
+        router = get_router()
+        result = router.route(clean_text)
     
-    # 3. Multi-Intent Detection (Segmentation)
-    segments = [s.strip() for s in re.split(r'\.|\band\b|\balso\b', clean_text, flags=re.I) if len(s.strip().split()) > 3]
-    segment_intents = []
-    if len(segments) > 1:
-        for seg in segments:
-            seg_res = router.route(seg)
-            if seg_res['confidence'] > 0.65:
-                segment_intents.append(seg_res['top_category'])
-    
-    unique_intents = list(dict.fromkeys(segment_intents))
-    is_multi_intent = len(unique_intents) >= 2
+        # 3. Multi-Intent Detection (Segmentation)
+        segments = [s.strip() for s in re.split(r'\.|\band\b|\balso\b', clean_text, flags=re.I) if len(s.strip().split()) > 3]
+        segment_intents = []
+        if len(segments) > 1:
+            for seg in segments:
+                seg_res = router.route(seg)
+                if seg_res['confidence'] > 0.65:
+                    segment_intents.append(seg_res['top_category'])
+
+        unique_intents = list(dict.fromkeys(segment_intents))
+        is_multi_intent = len(unique_intents) >= 2
 
     # 4. Operational SLA Risk Engine
     urg_val = features.get('urgency_score', 0.0)
@@ -219,10 +450,25 @@ def route_ticket(req: TicketRequest):
     sla_risk = min(max(raw_risk, 0.01), 1.0)
 
     # 5. Non-Support / Junk Detection
+    has_support_intent = _has_support_intent(clean_text, features, result)
+    can_route_by_signal = _can_route_by_direct_signal(result, clean_text)
+
     is_junk = False
-    if result['entropy'] > 1.6 and result['confidence'] < 0.4 and urg_val < 0.1 and not features.get('product_entities'):
+    if (
+        not has_support_intent
+        and result['entropy'] > 1.6
+        and result['confidence'] < 0.4
+        and urg_val < 0.1
+        and not features.get('product_entities')
+    ):
         is_junk = True
-    if features.get('token_count', 0) < 10 and urg_val < 0.1 and not features.get('has_question') and result['confidence'] < 0.6:
+    if (
+        not has_support_intent
+        and features.get('token_count', 0) < 10
+        and urg_val < 0.1
+        and not features.get('has_question')
+        and result['confidence'] < 0.6
+    ):
         is_junk = True
 
     # 6. Final Decision Orchestration
@@ -235,6 +481,7 @@ def route_ticket(req: TicketRequest):
         'margin': result['margin'],
         'all_probs': result['all_probs'],
         'sla_risk': round(sla_risk, 4),
+        'sla_breach_probability': round(sla_risk, 4),
         'urgency_score': round(urg_val, 4),
         'complexity_score': round(comp_val, 4),
         'is_multi_intent': is_multi_intent,
@@ -250,6 +497,15 @@ def route_ticket(req: TicketRequest):
             'response': "This doesn't appear to be a support request. Please provide more specific details about your issue.",
             'sla_risk': 0.01
         })
+    elif result.get('clarification_applied'):
+        final_decision.update({
+            'action': 'route',
+            'queue': result['queue'],
+            'reason': result['reason'],
+            'clarification_applied': True,
+            'clarification_choice': result.get('clarification_choice'),
+            'clarification_question_id': result.get('clarification_question_id'),
+        })
     elif is_multi_intent:
         final_decision.update({
             'action': 'multi_route',
@@ -257,26 +513,47 @@ def route_ticket(req: TicketRequest):
             'secondary_queue': unique_intents[1],
             'reason': f"Multiple intents detected: {', '.join(unique_intents)}",
         })
-    elif result['entropy'] > 1.2 or result['margin'] < 0.22:
+    elif _needs_clarification(result, clean_text):
         final_decision['action'] = 'clarify'
-    elif result['confidence'] < 0.62:
+    elif result['confidence'] < 0.62 and not can_route_by_signal:
         final_decision['action'] = 'escalate'
 
     # Stats Tracking
     action = final_decision['action']
-    if action == 'route': _stats['total_routed'] += 1
-    elif action == 'clarify': _stats['total_clarified'] += 1
-    elif action == 'multi_route': _stats['total_routed'] += 2
-    else: _stats['total_escalated'] += 1
+    if action == 'route':
+        _stats['total_routed'] += 1
+    elif action == 'clarify':
+        _stats['total_clarified'] += 1
+    elif action == 'multi_route':
+        _stats['total_multi_route'] += 1
+        _stats['total_routed'] += 1
+    else:
+        _stats['total_escalated'] += 1
 
     # Clarification Generation
     if action == 'clarify':
         engine = get_clarify()
         from ensemble_router import CATEGORY_MAP
         probs = np.array([result['all_probs'].get(c, 0) for c in CATEGORY_MAP.values()])
-        final_decision['clarification'] = engine.generate_question(clean_text, probs)
+        final_decision['clarification'] = engine.generate_question(
+            clean_text,
+            probs,
+            top_two_classes=result.get('top_two_classes'),
+        )
 
     return final_decision
+
+@app.post('/sla/predict')
+def predict_sla(req: SLARequest):
+    """Predict SLA breach risk from operational features."""
+    predictor = get_sla()
+    return predictor.explain(req.model_dump())
+
+@app.post('/churn/signal')
+def churn_signal(req: ThreadRequest):
+    """Extract churn-risk signals from a support conversation."""
+    extractor = get_churn()
+    return extractor.extract(req.thread_texts)
 
 @app.post('/clarify')
 def get_clarification(req: ClarifyRequest):
@@ -287,7 +564,49 @@ def get_clarification(req: ClarifyRequest):
         router = get_router()
         res = router.route(req.text)
         probs = np.array(list(res['all_probs'].values()))
-    return clar.generate_question(req.text, probs)
+    return clar.generate_question(
+        req.text,
+        probs,
+        top_two_classes=req.top_two_classes,
+    )
+
+
+@app.post('/explain')
+def explain_decision(req: ExplainRequest):
+    """Return token-level explanation data for the routed decision."""
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
+
+    target_idx = CATEGORY_INDEX.get((req.target_class or '').strip().lower())
+    explainer = get_explainer()
+    if explainer is not None:
+        result = explainer.explain(req.text, target_idx)
+        if 'error' not in result:
+            result['source'] = 'shap_transformer'
+            if req.target_class:
+                result['target_category'] = req.target_class
+            return result
+        logger.warning("SHAP explanation unavailable; using heuristic fallback: %s", result['error'])
+
+    return _heuristic_explanation(req.text, req.target_class)
+
+
+@app.get('/model/status')
+def model_status():
+    """Expose runtime model status for demos, monitoring, and deployment checks."""
+    router = get_router()
+    clarify = get_clarify()
+    return {
+        'router': getattr(router, 'model_status', {
+            'bert_available': getattr(router, '_bert_available', False),
+            'mode': 'ensemble' if getattr(router, '_bert_available', False) else 'sklearn_fallback',
+        }),
+        'historical_memory_online': bool(
+            getattr(getattr(router, '_memory_layer', None), 'is_ready', False)
+        ),
+        'clarification_llm_configured': bool(getattr(clarify, 'groq_client', None)),
+        'explainability': 'shap_transformer' if get_explainer() is not None else 'heuristic_keywords',
+    }
 
 @app.get('/metrics')
 def get_metrics():
@@ -301,9 +620,11 @@ def get_metrics():
             'route_pct':   round(_stats['total_routed']    / total * 100, 1),
             'clarify_pct': round(_stats['total_clarified'] / total * 100, 1),
             'escalate_pct':round(_stats['total_escalated'] / total * 100, 1),
+            'multi_route_pct': round(_stats.get('total_multi_route', 0) / total * 100, 1),
         },
-        'model': 'Ensemble (BERT+LR)' if bert_on else 'Fallback (LR Only)',
+        'model': 'Ensemble (Transformer + LR)' if bert_on else 'Sklearn fallback (LR only)',
         'bert_online': bert_on,
+        'model_status': getattr(router, 'model_status', None),
     }
 
 @app.get('/health')
