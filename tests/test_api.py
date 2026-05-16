@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
 
-from api import app, _order_intents_by_probability
+from api import app, _apply_probability_guardrails, _order_intents_by_probability
 
 client = TestClient(app)
 
@@ -115,6 +115,55 @@ def test_multi_route_ordering_uses_probability_chart():
         ["technical_support", "billing"],
         result,
     ) == ["billing", "technical_support"]
+
+def test_churn_probability_dampened_without_explicit_churn_signal():
+    result = {
+        "top_category": "billing",
+        "confidence": 0.6919,
+        "entropy": 1.3735,
+        "margin": 0.5325,
+        "all_probs": {
+            "billing": 0.6919,
+            "technical_support": 0.114,
+            "churn_risk": 0.159,
+            "onboarding": 0.014,
+            "general_inquiry": 0.008,
+            "account_management": 0.006,
+            "feature_request": 0.004,
+            "compliance_legal": 0.003,
+        },
+    }
+    adjusted = _apply_probability_guardrails(
+        result,
+        "Export has issues since last Tuesday and the invoice looks incorrect.",
+    )
+    assert adjusted["all_probs"]["churn_risk"] <= 0.05
+    assert adjusted["all_probs"]["technical_support"] > adjusted["all_probs"]["churn_risk"]
+    assert adjusted["top_category"] == "billing"
+
+def test_explicit_churn_signal_is_not_dampened():
+    result = {
+        "top_category": "churn_risk",
+        "confidence": 0.72,
+        "entropy": 0.9,
+        "margin": 0.4,
+        "all_probs": {
+            "billing": 0.05,
+            "technical_support": 0.08,
+            "churn_risk": 0.72,
+            "onboarding": 0.02,
+            "general_inquiry": 0.04,
+            "account_management": 0.03,
+            "feature_request": 0.03,
+            "compliance_legal": 0.03,
+        },
+    }
+    adjusted = _apply_probability_guardrails(
+        result,
+        "We are going to cancel and switch to a competitor next month.",
+    )
+    assert adjusted["all_probs"]["churn_risk"] == 0.72
+    assert adjusted["top_category"] == "churn_risk"
 
 def test_route_applies_clarification_answer():
     payload = {

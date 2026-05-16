@@ -372,6 +372,54 @@ def _result_forced_to_category(result: Dict, category: str, confidence: float, r
     return adjusted
 
 
+def _update_result_probabilities(result: Dict, probs: Dict[str, float]) -> Dict:
+    adjusted = dict(result)
+    total = sum(max(float(value), 0.0) for value in probs.values())
+    if total <= 0:
+        return adjusted
+
+    normalized = {
+        category: max(float(probs.get(category, 0.0)), 0.0) / total
+        for category in CATEGORY_NAMES
+    }
+    ranking = sorted(normalized.items(), key=lambda item: item[1], reverse=True)
+    entropy = float(-sum(p * np.log(p + 1e-9) for p in normalized.values()))
+    margin = float(ranking[0][1] - ranking[1][1])
+
+    adjusted.update({
+        'top_category': ranking[0][0],
+        'confidence': round(float(ranking[0][1]), 4),
+        'entropy': round(entropy, 4),
+        'margin': round(margin, 4),
+        'all_probs': {key: round(float(value), 4) for key, value in normalized.items()},
+        'category_ranking': [(key, round(float(value), 4)) for key, value in ranking],
+        'top_two_classes': [ranking[0][0], ranking[1][0]],
+    })
+    return adjusted
+
+
+def _has_explicit_churn_signal(text: str) -> bool:
+    return bool(re.search(
+        r'\b(?:cancel|cancelling|canceling|switching|switch to|competitor|'
+        r'leaving|terminate|churn|not renew|non-renew|renewal risk)\b',
+        text,
+        flags=re.I,
+    ))
+
+
+def _apply_probability_guardrails(result: Dict, text: str) -> Dict:
+    probs = dict(result.get('all_probs') or {})
+    churn_prob = float(probs.get('churn_risk', 0.0))
+
+    if churn_prob > 0.05 and not _has_explicit_churn_signal(text):
+        probs['churn_risk'] = 0.04
+        adjusted = _update_result_probabilities(result, probs)
+        adjusted['probability_guardrail'] = 'churn_dampened_without_explicit_churn_signal'
+        return adjusted
+
+    return result
+
+
 def _apply_direct_signal_overrides(result: Dict, text: str, direct_intents: List[str]) -> Dict:
     if len(direct_intents) >= 2:
         return result
@@ -551,6 +599,7 @@ def route_ticket(req: TicketRequest):
         unique_intents = list(dict.fromkeys(segment_intents or direct_intents))
         is_multi_intent = len(unique_intents) >= 2
         result = _apply_direct_signal_overrides(result, clean_text, unique_intents)
+        result = _apply_probability_guardrails(result, clean_text)
         if is_multi_intent:
             unique_intents = _order_intents_by_probability(unique_intents, result)
 
