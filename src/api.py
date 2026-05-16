@@ -295,6 +295,104 @@ def _category_signal_strength(text: str, category: str) -> int:
     )
 
 
+def _first_signal_position(text: str, category: str) -> int:
+    positions = []
+    for pattern in CATEGORY_SIGNAL_PATTERNS.get(category, []):
+        match = re.search(pattern, text, flags=re.I)
+        if match:
+            positions.append(match.start())
+    return min(positions) if positions else 10**9
+
+
+def _direct_signal_intents(text: str) -> List[str]:
+    strengths = {
+        category: _category_signal_strength(text, category)
+        for category in CATEGORY_NAMES
+    }
+    intents = []
+
+    account_access = re.search(
+        r'\b(?:forgot|reset|password|locked out|login|log in|access|sso|admin)\b',
+        text,
+        flags=re.I,
+    )
+
+    for category, strength in strengths.items():
+        if strength <= 0:
+            continue
+        if category == 'technical_support':
+            # "SSO login is broken" is an access-management signal, and
+            # "billing error" is a billing signal. Treat them as technical
+            # only when a concrete product/API failure marker is present.
+            if (account_access or strengths.get('billing', 0) > 0) and not re.search(
+                r'\b(?:api|http\s*\d{3}|500|timeout|integration|export|crash)\b',
+                text,
+                flags=re.I,
+            ):
+                continue
+        if category == 'account_management' and not account_access:
+            continue
+        intents.append(category)
+
+    return sorted(
+        intents,
+        key=lambda category: (_first_signal_position(text, category), CATEGORY_NAMES.index(category)),
+    )
+
+
+def _result_forced_to_category(result: Dict, category: str, confidence: float, reason: str) -> Dict:
+    adjusted = dict(result)
+    probs = dict(result.get('all_probs') or {})
+    other_total = sum(v for key, v in probs.items() if key != category)
+    remaining = max(0.0, 1.0 - confidence)
+
+    for key in CATEGORY_NAMES:
+        if key == category:
+            probs[key] = confidence
+        else:
+            original = float(probs.get(key, 0.0))
+            probs[key] = (original / other_total * remaining) if other_total else remaining / (len(CATEGORY_NAMES) - 1)
+
+    ranking = sorted(probs.items(), key=lambda item: item[1], reverse=True)
+    top_two = [ranking[0][0], ranking[1][0]]
+    entropy = float(-sum(p * np.log(p + 1e-9) for p in probs.values()))
+    margin = float(ranking[0][1] - ranking[1][1])
+
+    adjusted.update({
+        'top_category': category,
+        'confidence': round(confidence, 4),
+        'entropy': round(entropy, 4),
+        'margin': round(margin, 4),
+        'all_probs': {key: round(float(value), 4) for key, value in probs.items()},
+        'category_ranking': [(key, round(float(value), 4)) for key, value in ranking],
+        'top_two_classes': top_two,
+        'reason': reason,
+        'direct_signal_override': True,
+    })
+    return adjusted
+
+
+def _apply_direct_signal_overrides(result: Dict, text: str, direct_intents: List[str]) -> Dict:
+    if len(direct_intents) >= 2:
+        return result
+
+    account_strength = _category_signal_strength(text, 'account_management')
+    account_access = re.search(
+        r'\b(?:forgot|reset|password|locked out|login|log in|access|sso|admin)\b',
+        text,
+        flags=re.I,
+    )
+    if account_strength >= 2 and account_access and result.get('top_category') != 'account_management':
+        return _result_forced_to_category(
+            result,
+            'account_management',
+            confidence=max(0.78, float(result.get('all_probs', {}).get('account_management', 0.0))),
+            reason='Direct account-access signal detected: password/login/admin access.',
+        )
+
+    return result
+
+
 def _has_support_intent(text: str, features: Dict, result: Dict) -> bool:
     if any(re.search(pattern, text, flags=re.I) for pattern in SUPPORT_INTENT_PATTERNS):
         return True
@@ -429,16 +527,21 @@ def route_ticket(req: TicketRequest):
         result = router.route(clean_text)
     
         # 3. Multi-Intent Detection (Segmentation)
-        segments = [s.strip() for s in re.split(r'\.|\band\b|\balso\b', clean_text, flags=re.I) if len(s.strip().split()) > 3]
+        direct_intents = _direct_signal_intents(clean_text)
+        segments = [s.strip() for s in re.split(r'\.|,|\band\b|\balso\b', clean_text, flags=re.I) if len(s.strip().split()) > 3]
         segment_intents = []
         if len(segments) > 1:
             for seg in segments:
                 seg_res = router.route(seg)
                 if seg_res['confidence'] > 0.65:
                     segment_intents.append(seg_res['top_category'])
+                for direct_intent in _direct_signal_intents(seg):
+                    if direct_intent not in segment_intents:
+                        segment_intents.append(direct_intent)
 
-        unique_intents = list(dict.fromkeys(segment_intents))
+        unique_intents = list(dict.fromkeys(segment_intents or direct_intents))
         is_multi_intent = len(unique_intents) >= 2
+        result = _apply_direct_signal_overrides(result, clean_text, unique_intents)
 
     # 4. Operational SLA Risk Engine
     urg_val = features.get('urgency_score', 0.0)

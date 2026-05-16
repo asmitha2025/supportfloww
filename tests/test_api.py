@@ -64,6 +64,31 @@ def test_password_reset_is_support_request():
     assert data["action"] == "route"
     assert data["top_category"] == "account_management"
 
+def test_admin_password_access_routes_account_management():
+    payload = {
+        "text": "I forgot my password and cannot access the admin dashboard.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "route"
+    assert data["top_category"] == "account_management"
+    assert "clarification" not in data
+
+def test_invoice_and_sso_login_detects_multi_intent():
+    payload = {
+        "text": "The invoice is wrong, and also SSO login is broken for our managers.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "multi_route"
+    assert data["primary_queue"] == "billing"
+    assert data["secondary_queue"] == "account_management"
+    assert data["is_multi_intent"] is True
+
 def test_route_applies_clarification_answer():
     payload = {
         "text": "Export is broken and the invoice looks incorrect.",
