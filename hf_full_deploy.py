@@ -4,6 +4,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+SKIP_DIRS = {'__pycache__', '.pytest_cache', 'logs', 'scratch'}
+SKIP_SUFFIXES = ('.pyc', '.pyo', '.log')
+SKIP_FILES = {'src/server_log.txt'}
+
+
+def should_upload(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    parts = set(normalized.split("/"))
+    if parts & SKIP_DIRS:
+        return False
+    if normalized in SKIP_FILES:
+        return False
+    return not normalized.endswith(SKIP_SUFFIXES)
+
+
 def full_deploy():
     token = os.getenv("HF_TOKEN")
     if not token:
@@ -26,7 +41,7 @@ def full_deploy():
     if os.path.exists("src"):
         for f in os.listdir("src"):
             path = os.path.join("src", f)
-            if os.path.isfile(path):
+            if os.path.isfile(path) and should_upload(path):
                 repo_path = path.replace("\\", "/")
                 try:
                     api.upload_file(path_or_fileobj=path, path_in_repo=repo_path, repo_id=repo_id, repo_type=repo_type)
@@ -37,8 +52,11 @@ def full_deploy():
     print("\nUploading dashboard/ directory...")
     if os.path.exists("dashboard"):
         for root, dirs, files in os.walk("dashboard"):
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
             for f in files:
                 path = os.path.join(root, f)
+                if not should_upload(path):
+                    continue
                 try:
                     api.upload_file(path_or_fileobj=path, path_in_repo=path.replace("\\", "/"), repo_id=repo_id, repo_type=repo_type)
                     print(f"Uploaded {path}")
