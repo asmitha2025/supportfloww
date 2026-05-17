@@ -90,6 +90,43 @@ def test_invoice_and_sso_login_detects_multi_intent():
     assert data["secondary_queue"] == "account_management"
     assert data["is_multi_intent"] is True
 
+def test_invoice_email_update_does_not_route_to_onboarding():
+    payload = {
+        "text": "No rush, but can you tell me how to update the invoice email before tomorrow?",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["top_category"] in ("billing", "account_management")
+    assert data.get("primary_queue") != "onboarding"
+    assert data.get("secondary_queue") != "onboarding"
+
+def test_clear_billing_ticket_does_not_create_fake_onboarding_secondary():
+    payload = {
+        "text": "The invoice has the wrong tax amount and we need a corrected bill today.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["top_category"] == "billing"
+    assert data.get("secondary_queue") != "onboarding"
+
+def test_export_and_invoice_detects_billing_and_technical_routes():
+    payload = {
+        "text": "Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "multi_route"
+    assert {data["primary_queue"], data["secondary_queue"]} == {"billing", "technical_support"}
+    chart_top = max(data["all_probs"], key=data["all_probs"].get)
+    assert data["primary_queue"] == chart_top
+    assert data["all_probs"]["churn_risk"] <= 0.05
+
 @pytest.mark.parametrize("text", [
     "Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.",
     "Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.",

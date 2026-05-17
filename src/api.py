@@ -91,10 +91,10 @@ CATEGORY_INDEX = {category: idx for idx, category in enumerate(CATEGORY_NAMES)}
 
 CATEGORY_SIGNAL_PATTERNS = {
     'billing': [
-        r'\b(?:invoice|billing|refund|charge|payment|paid|duplicate payment|credit)\b',
+        r'\b(?:invoice|billing|bill|refund|charge|payment|paid|duplicate payment|credit)\b',
     ],
     'technical_support': [
-        r'\b(?:error|bug|crash|broken|failing|not working|api|http\s*\d{3}|500|timeout|integration)\b',
+        r'\b(?:error|bug|crash|broken|failing|not working|api|http\s*\d{3}|500|timeout|integration|export)\b',
     ],
     'account_management': [
         r'\b(?:password|login|log in|locked out|reset|permission|access|account|sso|user role|admin)\b',
@@ -117,7 +117,7 @@ CATEGORY_SIGNAL_PATTERNS = {
 }
 
 EXPLANATION_KEYWORDS = {
-    'billing': ['invoice', 'billing', 'refund', 'charge', 'payment', 'paid', 'credit', 'subscription', 'plan'],
+    'billing': ['invoice', 'billing', 'bill', 'refund', 'charge', 'payment', 'paid', 'credit', 'subscription', 'plan'],
     'technical_support': ['error', 'bug', 'crash', 'broken', 'failing', 'working', 'api', 'http', '500', 'timeout', 'integration', 'export'],
     'account_management': ['password', 'login', 'locked', 'reset', 'permission', 'access', 'account', 'sso', 'user', 'admin'],
     'feature_request': ['feature', 'request', 'enhancement', 'add', 'support', 'capability', 'roadmap'],
@@ -438,6 +438,20 @@ def _apply_direct_signal_overrides(result: Dict, text: str, direct_intents: List
             reason='Direct account-access signal detected: password/login/admin access.',
         )
 
+    billing_strength = _category_signal_strength(text, 'billing')
+    onboarding_strength = _category_signal_strength(text, 'onboarding')
+    if (
+        billing_strength > 0
+        and onboarding_strength == 0
+        and result.get('top_category') == 'onboarding'
+    ):
+        return _result_forced_to_category(
+            result,
+            'billing',
+            confidence=max(0.74, float(result.get('all_probs', {}).get('billing', 0.0))),
+            reason='Direct billing signal detected without onboarding evidence.',
+        )
+
     return result
 
 
@@ -589,12 +603,17 @@ def route_ticket(req: TicketRequest):
         segment_intents = []
         if len(segments) > 1:
             for seg in segments:
-                seg_res = router.route(seg)
-                if seg_res['confidence'] > 0.65:
-                    segment_intents.append(seg_res['top_category'])
                 for direct_intent in _direct_signal_intents(seg):
                     if direct_intent not in segment_intents:
                         segment_intents.append(direct_intent)
+                seg_res = router.route(seg)
+                top_category = seg_res['top_category']
+                if (
+                    seg_res['confidence'] > 0.65
+                    and _category_signal_strength(seg, top_category) > 0
+                    and top_category not in segment_intents
+                ):
+                    segment_intents.append(seg_res['top_category'])
 
         unique_intents = list(dict.fromkeys(segment_intents or direct_intents))
         is_multi_intent = len(unique_intents) >= 2
