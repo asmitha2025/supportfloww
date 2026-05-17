@@ -1,5 +1,8 @@
 from huggingface_hub import HfApi
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def full_deploy():
     token = os.getenv("HF_TOKEN")
@@ -24,9 +27,10 @@ def full_deploy():
         for f in os.listdir("src"):
             path = os.path.join("src", f)
             if os.path.isfile(path):
+                repo_path = path.replace("\\", "/")
                 try:
-                    api.upload_file(path_or_fileobj=path, path_in_repo=path, repo_id=repo_id, repo_type=repo_type)
-                    print(f"Uploaded {path}")
+                    api.upload_file(path_or_fileobj=path, path_in_repo=repo_path, repo_id=repo_id, repo_type=repo_type)
+                    print(f"Uploaded {repo_path}")
                 except Exception as e:
                     print(f"Failed {path}: {e}")
 
