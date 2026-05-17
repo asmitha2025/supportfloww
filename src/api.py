@@ -94,7 +94,7 @@ CATEGORY_SIGNAL_PATTERNS = {
         r'\b(?:invoice|billing|bill|refund|charge|payment|paid|duplicate payment|credit)\b',
     ],
     'technical_support': [
-        r'\b(?:error|bug|crash|broken|failing|not working|api|http\s*\d{3}|500|timeout|integration|export)\b',
+        r'\b(?:error|bug|crash|broken|failing|not working|api|http\s*\d{3}|500|timeout|integration|export|outage|down|unavailable)\b',
     ],
     'account_management': [
         r'\b(?:password|login|log in|locked out|reset|permission|access|account|sso|user role|admin)\b',
@@ -118,7 +118,7 @@ CATEGORY_SIGNAL_PATTERNS = {
 
 EXPLANATION_KEYWORDS = {
     'billing': ['invoice', 'billing', 'bill', 'refund', 'charge', 'payment', 'paid', 'credit', 'subscription', 'plan'],
-    'technical_support': ['error', 'bug', 'crash', 'broken', 'failing', 'working', 'api', 'http', '500', 'timeout', 'integration', 'export'],
+    'technical_support': ['error', 'bug', 'crash', 'broken', 'failing', 'working', 'api', 'http', '500', 'timeout', 'integration', 'export', 'outage', 'down', 'unavailable'],
     'account_management': ['password', 'login', 'locked', 'reset', 'permission', 'access', 'account', 'sso', 'user', 'admin'],
     'feature_request': ['feature', 'request', 'enhancement', 'add', 'support', 'capability', 'roadmap'],
     'compliance_legal': ['gdpr', 'compliance', 'legal', 'audit', 'privacy', 'dpa', 'regulatory', 'security'],
@@ -407,6 +407,16 @@ def _has_explicit_churn_signal(text: str) -> bool:
     ))
 
 
+def _has_system_failure_signal(text: str) -> bool:
+    return bool(re.search(
+        r'\b(?:outage|production\s+(?:is\s+)?(?:down|blocked|broken|failing)|'
+        r'(?:service|platform|dashboard|api)\s+(?:is\s+)?(?:down|unavailable|not responding)|'
+        r'all\s+users\s+(?:are\s+)?(?:affected|blocked|unable))\b',
+        text,
+        flags=re.I,
+    ))
+
+
 def _apply_probability_guardrails(result: Dict, text: str) -> Dict:
     probs = dict(result.get('all_probs') or {})
     churn_prob = float(probs.get('churn_risk', 0.0))
@@ -450,6 +460,18 @@ def _apply_direct_signal_overrides(result: Dict, text: str, direct_intents: List
             'billing',
             confidence=max(0.74, float(result.get('all_probs', {}).get('billing', 0.0))),
             reason='Direct billing signal detected without onboarding evidence.',
+        )
+
+    if (
+        _has_system_failure_signal(text)
+        and not _has_explicit_churn_signal(text)
+        and result.get('top_category') != 'technical_support'
+    ):
+        return _result_forced_to_category(
+            result,
+            'technical_support',
+            confidence=max(0.78, float(result.get('all_probs', {}).get('technical_support', 0.0))),
+            reason='Direct system-failure signal detected: outage/down/unavailable.',
         )
 
     return result
@@ -560,6 +582,13 @@ def _can_route_by_direct_signal(result: Dict, text: str) -> bool:
         return True
 
     if category == 'billing' and signal_strength >= 3 and margin >= 0.15:
+        return True
+
+    if (
+        category == 'technical_support'
+        and _has_system_failure_signal(text)
+        and confidence >= 0.35
+    ):
         return True
 
     if signal_strength >= 3 and confidence >= 0.58 and margin >= 0.20:

@@ -66,6 +66,7 @@ CONTEXTUAL_URGENCY_SIGNALS = [
             r'\b(?:again|still|keeps?|repeated|recurring)\b',
             r'\b(?:second|third|fourth)\s+time\b',
             r'\b(?:raised|reported|opened)\s+(?:this\s+)?(?:before|multiple times|again)\b',
+            r'\b(?:raised|reported|opened)\s+.*\b(?:two|three|four|multiple)\s+times\b',
         ],
     ),
 ]

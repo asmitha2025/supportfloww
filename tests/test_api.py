@@ -129,6 +129,23 @@ def test_export_and_invoice_detects_billing_and_technical_routes():
     assert data["primary_queue"] == chart_top
     assert data["all_probs"]["churn_risk"] <= 0.05
 
+def test_repeated_outage_routes_without_redundant_clarification():
+    payload = {
+        "text": "I am extremely frustrated. We have reported this outage three times and nobody replied.",
+        "customer_id": "test_123"
+    }
+    response = client.post("/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["action"] == "route"
+    assert data["top_category"] == "technical_support"
+    assert "clarification" not in data
+    assert "frustration: frustrated" in data["features"]["sentiment_evidence"]
+    assert any(
+        evidence.startswith("repeat_issue:")
+        for evidence in data["features"]["urgency_evidence"]
+    )
+
 @pytest.mark.parametrize("text", [
     "Hey, we have been having issues with the export function since last Tuesday's update. Also our invoice from last month looks incorrect.",
     "Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.",
