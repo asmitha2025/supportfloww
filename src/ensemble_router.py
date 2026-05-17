@@ -150,18 +150,26 @@ class EnsembleRouter:
             'billing': [
                 'invoice is wrong', 'refund request', 'payment failed',
                 'billing charge incorrect', 'subscription price changed',
+                'invoice from last month shows wrong amount',
+                'please fix this billing error',
+                'invoice is wrong and needs correction',
             ],
             'technical_support': [
                 'api returns 500 error', 'export is broken', 'dashboard crash',
                 'integration timeout', 'feature not working',
+                'export function has issues after update',
             ],
             'account_management': [
                 'reset password', 'add user account', 'sso login issue',
                 'change admin permission', 'locked out of account',
+                'cannot access admin dashboard',
             ],
             'feature_request': [
                 'please add dark mode', 'new feature request',
                 'need custom dashboard', 'enhancement idea',
+                'could you add dark mode to the dashboard',
+                'add dark mode in a future release',
+                'request support for a new dashboard option',
             ],
             'compliance_legal': [
                 'gdpr data request', 'soc 2 audit report',

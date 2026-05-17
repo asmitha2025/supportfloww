@@ -1,4 +1,4 @@
-// SupportMind Dashboard — app.js
+// SupportMind Dashboard - app.js
 // Interactive demo with real API calls (falls back to simulation if API unavailable)
 
 let API_BASE = window.location.origin;
@@ -22,7 +22,7 @@ const CAT_COLORS = {
   general_inquiry: '#94a3b8', churn_risk: '#facc15',
 };
 
-// ── Init ──────────────────────────────────────────────
+// -- Init ----------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
   animateCounters();
   initPresets();
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(updateMetrics, 5000); // Update every 5 seconds
 });
 
-// ── Counter Animation ─────────────────────────────────
+// -- Counter Animation ---------------------------------
 function animateCounters() {
   document.querySelectorAll('.stat-card').forEach(card => {
     const counter = card.querySelector('.counter');
@@ -53,37 +53,37 @@ function animateCounters() {
   });
 }
 
-// ── Presets ────────────────────────────────────────────
-// ── Live Telemetry Engine ───────────────────────────
+// -- Presets --------------------------------------------
+// -- Live Telemetry Engine ---------------------------
 async function updateMetrics() {
   try {
     const res = await fetch(`${API_BASE}/metrics`);
     if (!res.ok) return;
     const data = await res.json();
-    
+
     // Update Counter
     document.getElementById('live-total').textContent = data.total_requests.toLocaleString();
-    
+
     // Update Model Name
     document.getElementById('live-model').textContent = data.model;
-    
+
     // Update Distribution Bar
     const dist = data.routing_distribution;
     document.getElementById('dist-route').style.width = `${dist.route_pct}%`;
     document.getElementById('dist-clarify').style.width = `${dist.clarify_pct}%`;
     document.getElementById('dist-escalate').style.width = `${dist.escalate_pct}%`;
-    
+
     // Update Status Pulse
     const indicator = document.getElementById('live-indicator');
     indicator.style.opacity = '1';
     setTimeout(() => { indicator.style.opacity = '0.8'; }, 500);
-    
+
   } catch (err) {
     console.warn("Metrics sync failed:", err);
   }
 }
 
-// ── Presets ────────────────────────────────────────────
+// -- Presets --------------------------------------------
 function initPresets() {
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -103,7 +103,7 @@ function initSmoothScroll() {
   });
 }
 
-// ── MC Dropout Visualization ──────────────────────────
+// -- MC Dropout Visualization --------------------------
 function initDropoutViz() {
   const grid = document.getElementById('dropout-grid');
   if (!grid) return;
@@ -130,7 +130,7 @@ function initDropoutViz() {
   }, 2000);
 }
 
-// ── Scroll Animations ─────────────────────────────────
+// -- Scroll Animations ---------------------------------
 function initScrollAnimations() {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
@@ -141,7 +141,7 @@ function initScrollAnimations() {
   });
 }
 
-// ── API Check ─────────────────────────────────────────
+// -- API Check -----------------------------------------
 async function checkAPI() {
   for (const candidate of apiCandidates()) {
     try {
@@ -161,16 +161,16 @@ async function checkAPI() {
   if (statusEl) statusEl.textContent = 'Demo Mode';
 }
 
-// ── Live Metrics ──────────────────────────────────────
+// -- Live Metrics --------------------------------------
 async function updateLiveMetrics() {
   if (!apiOnline) return;
   try {
     const res = await fetch(`${API_BASE}/metrics`);
     const data = await res.json();
-    
+
     document.getElementById('live-model').textContent = data.model;
     document.getElementById('live-total').textContent = data.total_requests;
-    
+
     const dist = data.routing_distribution;
     document.getElementById('dist-route').style.width = dist.route_pct + '%';
     document.getElementById('dist-clarify').style.width = dist.clarify_pct + '%';
@@ -180,7 +180,7 @@ async function updateLiveMetrics() {
   }
 }
 
-// ── Route Ticket ──────────────────────────────────────
+// -- Route Ticket --------------------------------------
 async function routeTicket(extraPayload = {}) {
   const text = document.getElementById('ticket-input').value.trim();
   if (!text) return;
@@ -207,11 +207,11 @@ async function routeTicket(extraPayload = {}) {
     displayResult(result, text);
   }
 
-  btn.innerHTML = '<span class="btn-icon">⚡</span> Route Ticket';
+  btn.innerHTML = 'Route Ticket';
   btn.disabled = false;
 }
 
-// ── Display Result ────────────────────────────────────
+// -- Display Result ------------------------------------
 function displayResult(r, routedText) {
   // Handle edge cases
   if (r.action === 'invalid_input') {
@@ -253,7 +253,7 @@ function displayResult(r, routedText) {
   // Action Badge Logic
   const badge = document.getElementById('action-badge');
   const queue = document.getElementById('action-queue');
-  
+
   if (r.action === 'multi_route') {
     badge.textContent = 'MULTI-ROUTE';
     badge.className = 'action-badge';
@@ -267,7 +267,7 @@ function displayResult(r, routedText) {
   } else {
     badge.textContent = r.action.toUpperCase();
     badge.className = `action-badge ${r.action}`;
-    queue.textContent = r.action === 'route' ? `→ ${r.queue || r.top_category} queue` : 
+    queue.textContent = r.action === 'route' ? `-> ${r.queue || r.top_category} queue` :
                          r.action === 'clarify' ? 'Needs 1 clarification question' : 'Immediate human triage';
   }
 
@@ -321,11 +321,11 @@ function displayResult(r, routedText) {
 
         const target = optionTargets[index]
           || inferClarificationTarget(o, r.clarification.relevant_classes || r.top_two_classes || [], index);
-        
+
         // Keep the selection visible and machine-readable for repeat manual runs.
         const input = document.getElementById('ticket-input');
         input.value = input.value.trim() + '\n\n[Clarification: ' + target + ' - ' + o + ']';
-        
+
         // Re-route with new context after a short delay
         setTimeout(() => {
           routeTicket({
@@ -346,9 +346,9 @@ function displayResult(r, routedText) {
     const sourceBadge = document.createElement('div');
     sourceBadge.id = 'source-badge';
     sourceBadge.style.cssText = 'font-size:11px;margin-top:8px;opacity:0.6;';
-    sourceBadge.textContent = r.clarification.source === 'llm_groq' 
-        ? '⚡ Generated by LLaMA3 via Groq' 
-        : '📋 Selected from template bank';
+    sourceBadge.textContent = r.clarification.source === 'llm_groq'
+        ? 'Generated by LLaMA3 via Groq'
+        : 'Template: Selected from template bank';
     document.getElementById('clarification-box').appendChild(sourceBadge);
 
     document.getElementById('clarify-gain').textContent =
@@ -369,16 +369,16 @@ function displayResult(r, routedText) {
   const sent = feat.sentiment_score;
   const sentLabel = feat.sentiment_label || sentimentLabelFromScore(sent);
   const sentimentValue = document.getElementById('sentiment-value');
-  sentimentValue.textContent = sentLabel ? sentLabel.toUpperCase() : '—';
+  sentimentValue.textContent = sentLabel ? sentLabel.toUpperCase() : '-';
   sentimentValue.style.color = sentimentColor(sentLabel, sent);
   const sentimentScore = document.getElementById('sentiment-score');
   if (sentimentScore) {
     const raw = typeof feat.sentiment_raw_score === 'number'
       ? ` raw ${feat.sentiment_raw_score.toFixed(2)}`
       : '';
-    sentimentScore.textContent = sent !== undefined ? `score ${sent.toFixed(2)}${raw}` : '—';
+    sentimentScore.textContent = sent !== undefined ? `score ${sent.toFixed(2)}${raw}` : '-';
   }
-  
+
   const urgScore = numericValue(r.urgency_score, feat.urgency_score, 0);
   const urgLevel = feat.urgency_level || urgencyLevelFromScore(urgScore);
   const urgencyCard = document.getElementById('urgency-value').parentElement;
@@ -403,7 +403,7 @@ function displayResult(r, routedText) {
   renderEvidenceList('sentiment-evidence-list', feat.sentiment_evidence || []);
 
   document.getElementById('latency-value').textContent =
-    r.latency_ms ? r.latency_ms + 'ms' : '—';
+    r.latency_ms ? r.latency_ms + 'ms' : '-';
 
   // Reason
   let decisionReason = '';
@@ -436,12 +436,12 @@ function displayResult(r, routedText) {
   document.getElementById('explanation-box').style.display = 'none';
 }
 
-// ── Explain Decision (SHAP) ───────────────────────────
+// -- Explain Decision (SHAP) ---------------------------
 async function explainDecision() {
   const btn = document.getElementById('explain-btn');
   const text = btn.dataset.text;
   const targetClass = btn.dataset.category;
-  
+
   btn.innerHTML = '<span class="spinner"></span> Analyzing tokens...';
   btn.disabled = true;
 
@@ -497,11 +497,11 @@ function renderSHAP(data) {
     const span = document.createElement('span');
     span.className = 'shap-token';
     span.textContent = token.replace('##', ''); // Simple handling for subwords
-    
+
     // Normalize opacity based on value
     const absVal = Math.abs(val);
     const opacity = Math.min(absVal * 5, 0.8); // Scale for visibility
-    
+
     if (val > 0) {
       span.style.background = `rgba(74, 222, 128, ${opacity})`;
       span.style.borderBottom = `2px solid rgba(74, 222, 128, ${opacity + 0.2})`;
@@ -513,7 +513,7 @@ function renderSHAP(data) {
     textEl.appendChild(span);
     textEl.appendChild(document.createTextNode(' '));
   });
-  
+
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -737,7 +737,7 @@ function inferDemoSignals(t) {
 }
 
 
-// ── Seeded PRNG (deterministic per text) ──────────────
+// -- Seeded PRNG (deterministic per text) --------------
 function hashText(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
@@ -754,7 +754,7 @@ function seededRandom(seed) {
   };
 }
 
-// ── Simulation (when API is offline) ──────────────────
+// -- Simulation (when API is offline) ------------------
 function simulateRouting(text, extraPayload = {}) {
   const t = text.toLowerCase().trim();
   const marker = t.match(/\[clarification:\s*([a-z_]+)\s*-\s*([^\]]+)\]/);
@@ -787,7 +787,7 @@ function simulateRouting(text, extraPayload = {}) {
       latency_ms: 28 + (hashText(t) % 20),
     };
   }
-  
+
   // Basic validation in simulation to match real API behavior
   if (t.length < 10) {
     const greetings = ['hi', 'hello', 'hey', 'test'];
@@ -795,7 +795,7 @@ function simulateRouting(text, extraPayload = {}) {
         return {
             action: 'invalid_input',
             error_type: 'greeting',
-            response: "Hi there! 👋 Could you describe the issue you're experiencing? We're here to help."
+            response: "Hi there! Could you describe the issue you're experiencing? We're here to help."
         };
     }
     return {
@@ -854,21 +854,21 @@ function simulateRouting(text, extraPayload = {}) {
   if (critical_labels.includes(topCat)) {
     if (confidence >= 0.90 && margin >= 0.35 && entropy < 0.60) {
       action = 'route';
-      reason = `• Safe to auto-route sensitive intent<br>• Confidence: ${(confidence*100).toFixed(1)}%<br>• Margin: ${margin.toFixed(2)}`;
+      reason = `- Safe to auto-route sensitive intent<br>- Confidence: ${(confidence*100).toFixed(1)}%<br>- Margin: ${margin.toFixed(2)}`;
     } else {
       action = 'escalate';
-      reason = `• Escalated sensitive intent (${topCat.replace(/_/g,' ')})<br>• Strict confidence/margin threshold not met`;
+      reason = `- Escalated sensitive intent (${topCat.replace(/_/g,' ')})<br>- Strict confidence/margin threshold not met`;
     }
   } else {
     if (confidence >= 0.85 && margin >= 0.25 && entropy < 0.70) {
       action = 'route';
-      reason = `• Strong dominant intent<br>• Confidence: ${(confidence*100).toFixed(1)}%<br>• Margin: ${margin.toFixed(2)}<br>• Safe to auto-route`;
+      reason = `- Strong dominant intent<br>- Confidence: ${(confidence*100).toFixed(1)}%<br>- Margin: ${margin.toFixed(2)}<br>- Safe to auto-route`;
     } else if (confidence >= 0.60 && entropy < 1.05) {
       action = 'clarify';
-      reason = `• Medium ambiguity detected<br>• Clarification needed between ${topTwo[0].replace(/_/g,' ')} and ${topTwo[1].replace(/_/g,' ')}<br>• Margin: ${margin.toFixed(2)}`;
+      reason = `- Medium ambiguity detected<br>- Clarification needed between ${topTwo[0].replace(/_/g,' ')} and ${topTwo[1].replace(/_/g,' ')}<br>- Margin: ${margin.toFixed(2)}`;
     } else {
       action = 'escalate';
-      reason = `• High ambiguity / Low confidence (${(confidence*100).toFixed(1)}%)<br>• Multiple overlapping intents detected<br>• Human triage needed`;
+      reason = `- High ambiguity / Low confidence (${(confidence*100).toFixed(1)}%)<br>- Multiple overlapping intents detected<br>- Human triage needed`;
     }
   }
 
@@ -903,7 +903,7 @@ function simulateRouting(text, extraPayload = {}) {
 
   const demoSignals = inferDemoSignals(t);
 
-  // SLA — deterministic based on text features
+  // SLA - deterministic based on text features
   const outageWords = ['down', 'outage', 'crash', 'failing', 'blocked'];
   const outageFlags = outageWords.filter(w => t.includes(w));
   const slaBase = 0.15

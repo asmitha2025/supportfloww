@@ -49,6 +49,10 @@ scratch/
 src/server_log.txt
 tmp_probe_routes.py
 
+# Local-only launch and posting drafts
+docs/LINKEDIN_KIT.md
+docs/BLOG_POST.md
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

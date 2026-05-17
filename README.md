@@ -1,253 +1,223 @@
 ---
 title: SupportMind
-emoji: 🧠
+emoji: brain
 colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
 ---
 
-# AetherFlow AI | SupportMind Engine 🧠
+# SupportMind
 
-**Confidence-Gated Support Intelligence for B2B SaaS Customer Operations**
+**Confidence-gated AI ticket routing for B2B SaaS support teams**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green.svg)](https://fastapi.tiangolo.com)
 [![Transformers](https://img.shields.io/badge/HuggingFace-Transformers-orange.svg)](https://huggingface.co/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI Status](https://github.com/asmitha2025/supportfloww/actions/workflows/ci.yml/badge.svg)](https://github.com/asmitha2025/supportfloww/actions)
 
-> *"B2B SaaS support teams don't lose customers because agents are slow. They lose them because AI acts with false confidence on ambiguous tickets — and nobody in the stack knows it happened."*
+SupportMind is an uncertainty-aware support-routing engine built for the problem that most ticket classifiers ignore: **AI can be confidently wrong on ambiguous customer tickets**.
 
----
+Instead of always forcing a category, SupportMind uses a three-tier decision gate:
 
-## 🎯 What is SupportMind?
+| Decision | Signal | Action |
+| --- | --- | --- |
+| Route | High confidence, low ambiguity | Auto-assign to the best support queue. |
+| Clarify | Medium confidence or competing intents | Ask one targeted question before routing. |
+| Escalate | Low confidence or high-risk uncertainty | Send to human triage. |
 
-SupportMind is a **confidence-gated, uncertainty-aware** ticket routing system that solves the most expensive unsolved problem in B2B SaaS support: **AI routing ambiguous tickets with false certainty**.
+This makes the system useful for real support operations where a wrong route can cost agent time, SLA performance, and customer trust.
 
-Unlike traditional AI solutions (Zoho Zia, Freshworks Freddy, Zendesk, and Salesforce Einstein) which use standard Softmax classifiers with no uncertainty output, SupportMind implements **Monte Carlo Dropout on DistilBERT**. This produces calibrated confidence scores and Shannon entropy, enabling a robust **three-tier decision gate**:
+## Why It Matters
 
-| Action | Confidence | Entropy | What Happens |
-|--------|-----------|---------|--------------|
-| **ROUTE** | ≥ 0.80 | ≤ 0.35 | Auto-assign to the correct agent queue immediately. |
-| **CLARIFY** | 0.55 – 0.80 | N/A | Ask 1 targeted, high-information-gain question to disambiguate. |
-| **ESCALATE** | < 0.55 | N/A | Flag as complex; send to human triage immediately. |
+Traditional softmax classifiers return a category even when the input is unclear. In customer support, that means tickets like "export is broken and my invoice is wrong" can be routed to only one team, even though two teams need to act.
 
----
+SupportMind is designed to fail safely:
 
-## 🏗️ Detailed System Architecture
+- Detects uncertainty with Monte Carlo Dropout and entropy.
+- Handles multi-intent tickets such as billing plus technical support.
+- Generates clarification questions when the model should not guess.
+- Predicts SLA risk using operational features.
+- Provides a lightweight fallback router so clean clones, demos, and CI still work without private model files.
 
-The SupportMind engine operates as a multi-stage pipeline designed to mimic human cognitive processes in support triage:
+## Demo Flow
 
-### Stage 1: Feature Extraction & Signal Detection
-When a ticket arrives, it passes through an NLP feature extraction layer:
-* **DistilBERT Embeddings**: Extracts deep semantic meaning (768-dimensional space).
-* **VADER Sentiment Analysis**: Measures emotional tone (frustration, anger).
-* **Regex & Heuristics**: Detects urgency flags ("ASAP", "System Down") and text complexity (Flesch-Kincaid).
+Run the API and dashboard:
 
-### Stage 2: Confidence-Gated Router (MC Dropout)
-Instead of a single forward pass, the DistilBERT classifier performs **20 stochastic forward passes**. By randomly deactivating neurons, it generates a distribution of predictions.
-* **Low variance** across passes = High Confidence (Safe to Route)
-* **High variance** across passes = High Epistemic Uncertainty (Needs Clarification or Escalation)
-
-### Stage 3: The Intelligence Layer
-* **SLA Breach Predictor (XGBoost)**: Evaluates the extracted features against current queue depth and historical SLA data to predict the probability of missing SLA targets (AUC 0.83).
-* **Clarification Engine (Hybrid Architecture)**: When the router enters the CLARIFY tier, the engine uses a two-layer approach:
-  1. **LLM Layer (Groq LLaMA3-8B)**: Generates a ticket-specific question referencing the customer's exact words. Runs in ~100ms via Groq's optimized inference.
-  2. **Template Layer (fallback)**: If LLM is unavailable, selects from 47 pre-built templates scored by expected Shannon entropy reduction (information gain).
-  
-  This design ensures the system never stops routing — LLM enhances quality when available, templates guarantee reliability always.
-
----
-
-## 📊 Benchmark Results (Honest Dual-Evaluation)
-
-> ⚠️ **Benchmark Validity**: To ensure complete transparency, this project reports two sets of accuracy numbers:
-> 1. **In-Distribution (Synthetic)**: The test set is generated from the same templates as the training data. The 100% accuracy here merely confirms the model successfully learned the training distribution without catastrophic forgetting.
-> 2. **Out-of-Distribution (OOD)**: Evaluated against a separate, hand-crafted dataset of 96 real-world-style tickets (informal language, typos, missing context, and ambiguous edge-cases). **This is the honest estimate of the model's true generalization ability before fine-tuning on real production data.**
-
-| Metric | In-Distribution *(synthetic)* | Out-of-Distribution *(hand-crafted)* |
-|--------|------------------------------|--------------------------------------|
-| Overall Routing Accuracy | **100.0%** | **57.3%** |
-| Precision on Auto-Routed | **100.0%** | **100.0%** |
-| Accuracy on Ambiguous Tickets | — | **30.0%** |
-
-### Why the OOD Accuracy is "Low" (And Why That's Good)
-On the OOD dataset, the model correctly routed the familiar tickets but struggled with the novel/ambiguous ones. **However, it only auto-routed 2.1% of the OOD tickets (achieving 100% precision on those).** It correctly flagged the remaining 97.9% as requiring clarification (51%) or escalation (47%). 
-
-Traditional Softmax classifiers would have blindly auto-routed these unfamiliar tickets, leading to costly misroutes. **SupportMind's confidence gate correctly prevented these misroutes.** This proves the architecture works as intended—even when the model weights are untrained for the specific domain, the system fails *safely*.
-
-### Why This Matters for Zoho Desk + Zia
-
-Zia's current field prediction uses standard Softmax — it returns a 
-category with no uncertainty signal. When Zia is wrong on an ambiguous 
-ticket, the agent only discovers the misroute after picking it up. 
-SupportMind's clarification gate catches this *before* routing, 
-reducing misroute cost from agent-time to one extra customer message.
-
----
-
-## 🚀 Installation & Setup Guide
-
-Follow these steps to set up the engine locally for development or demonstration.
-
-### 1. Prerequisites
-* Python 3.10+
-* Git
-* Virtual Environment tool (`venv`, `conda`, etc.)
-
-### 2. Clone and Install
 ```bash
-# Clone the repository
-git clone https://github.com/asmitha2025/supportfloww.git
-cd supportfloww
-
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
+uvicorn src.api:app --host 0.0.0.0 --port 7860 --reload
 ```
 
-### 3. Running the System Locally
-The core system is powered by FastAPI, serving both the REST API and the interactive dashboard.
+Open:
 
-```bash
-# Start the FastAPI server
-cd src
-uvicorn api:app --host 0.0.0.0 --port 7860 --reload
+```text
+http://localhost:7860/
 ```
-Once the server is running, navigate to `http://localhost:7860/` in your web browser to access the **Live SupportMind Dashboard**.
 
-### Runtime Mode
-SupportMind exposes the active runtime at `GET /model/status`.
+Try these tickets:
 
-- On Windows, the API defaults to the sklearn fallback router to avoid native PyTorch/safetensors crashes during demos.
-- On Linux/Hugging Face Spaces, the transformer ensemble is attempted when model files are present.
-- To force transformer loading locally after verifying your machine can support it, set `SUPPORTMIND_FORCE_TRANSFORMER=1`.
-- To explicitly run lightweight mode anywhere, set `SUPPORTMIND_DISABLE_TRANSFORMER=1`.
+```text
+The API endpoint /v2/export returns a 500 error when batch size exceeds 1000 records.
+```
 
----
+```text
+The invoice is wrong, and also SSO login is broken for our managers.
+```
 
-## 🧠 Training the Models
+```text
+Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.
+```
 
-If you wish to retrain the models from scratch using your own datasets:
+## Architecture
 
-1. **Prepare Data**: Place your raw ticket data in `data/raw/`.
-2. **Train Router**: 
-   ```bash
-   python src/train_baseline.py  # Trains the fallback TF-IDF + Logistic Regression model
-   python src/train_router.py    # Trains the DistilBERT sequence classifier
-   ```
-   *These scripts train the routing models and save them to `models/ticket_classifier/`.*
-3. **Train SLA Predictor**:
-   ```bash
-   python src/train_sla.py
-   ```
-   *This trains the XGBoost model based on synthetic feature data and saves to `models/sla_predictor/`.*
-4. **Evaluate System**:
-   ```bash
-   python src/evaluate.py
-   ```
-   *Generates benchmark metrics comparing MC Dropout against a standard Softmax baseline.*
+```text
+Incoming ticket
+  -> validation and cleaning
+  -> feature extraction
+  -> confidence-gated router
+  -> multi-intent detection
+  -> SLA risk scoring
+  -> route, clarify, or escalate
+```
 
----
+Core modules:
 
-## 📡 Comprehensive API Reference
+- `src/api.py` - FastAPI app, dashboard serving, orchestration, guardrails.
+- `src/ensemble_router.py` - Transformer plus sklearn ensemble with fallback mode.
+- `src/confidence_router.py` - Monte Carlo Dropout transformer router.
+- `src/clarification_engine.py` - LLM/template clarification question generation.
+- `src/feature_extraction.py` - NLP, sentiment, urgency, and complexity signals.
+- `src/sla_predictor.py` - SLA breach risk prediction.
+- `tests/` - API, router, clarification, SLA, validator, and feature tests.
 
-SupportMind exposes a fully documented RESTful API. When the server is running, visit `http://localhost:7860/docs` for the interactive Swagger UI.
+## Runtime Modes
 
-### `POST /route`
-**Description**: Main routing endpoint. Processes a ticket and returns a 3-tier confidence-gated decision.
-**Request Body**:
+SupportMind supports two runtime paths:
+
+- **Full model mode:** uses transformer model files when available.
+- **Fallback mode:** uses an embedded sklearn router so tests, demos, and CI can run without ignored local model artifacts.
+
+Model artifacts are intentionally ignored from git:
+
+```text
+models/
+data/raw/
+data/processed/
+```
+
+This keeps the repository lightweight and makes the public project easier to clone.
+
+## Benchmark Framing
+
+SupportMind reports two types of evaluation:
+
+| Metric | In-distribution synthetic | Out-of-distribution hand-crafted |
+| --- | ---: | ---: |
+| Routing accuracy | 100.0% | 57.3% |
+| Auto-route precision | 100.0% | 100.0% |
+| Ambiguous-ticket accuracy | N/A | 30.0% |
+
+The OOD number is intentionally honest. The important result is not that the model guesses every unclear ticket correctly. The important result is that it avoids unsafe auto-routing when it is uncertain.
+
+## Safety Approach
+
+No AI router can guarantee that every unseen customer ticket will be correct. SupportMind handles that risk by making uncertainty part of the workflow:
+
+- Low-confidence tickets are escalated instead of forced into a queue.
+- Medium-confidence tickets trigger clarification instead of silent guessing.
+- Multi-intent tickets expose primary and secondary queues.
+- Non-neutral sentiment must include visible evidence in the response.
+- Demo consistency tests verify that displayed queues match the probability chart.
+
+For production use, this should still be paired with real support data, calibration checks, human review thresholds, and agent feedback loops. The demo is honest about that boundary.
+
+## API
+
+Interactive docs are available at:
+
+```text
+http://localhost:7860/docs
+```
+
+Main endpoint:
+
+```http
+POST /route
+```
+
+Example request:
+
 ```json
 {
-  "text": "The API endpoint /v2/export returns a 500 error when batch size exceeds 1000.",
+  "text": "The API endpoint /v2/export returns a 500 error when batch size exceeds 1000 records.",
   "customer_id": "cust_8910"
 }
 ```
-**Response**:
+
+Example response:
+
 ```json
 {
   "action": "route",
-  "confidence": 0.942,
+  "confidence": 0.94,
   "entropy": 0.12,
   "top_category": "technical_support",
-  "features": {
-    "sentiment_score": -0.25,
-    "urgency_flags": []
-  },
   "sla_breach_probability": 0.15,
   "latency_ms": 45.2
 }
 ```
 
-### `POST /clarify`
-**Description**: Fetch the best clarification question based on model uncertainty.
-### `POST /sla/predict`
-**Description**: Predict SLA breach risk independently based on features.
-### `POST /churn/signal`
-**Description**: Extract churn signals from an array of historical thread texts.
-### `GET /metrics`
-**Description**: Live system health and routing distribution statistics.
+Other endpoints:
 
----
+- `POST /clarify` - generate a clarification question.
+- `POST /sla/predict` - score SLA breach risk.
+- `POST /churn/signal` - extract churn-risk signals from conversation history.
+- `POST /explain` - return token-level explanation data.
+- `GET /metrics` - live routing distribution and service stats.
+- `GET /model/status` - active model/fallback status.
 
-## 🐳 Docker Deployment
+## Tests
 
-For production deployments, package the application using Docker.
+Run:
 
 ```bash
-# Build the image
-docker build -t supportmind .
-
-# Run the container
-docker run -d -p 7860:7860 --name supportmind-api supportmind
+python -m pytest -q
 ```
 
-For advanced orchestration, we recommend extending the deployment with `docker-compose` to include Redis or RabbitMQ for asynchronous webhook processing.
-
----
-
-## 📁 Repository Structure
+Current local result:
 
 ```text
-supportmind/
-├── src/
-│   ├── api.py                    # FastAPI server & endpoints
-│   ├── confidence_router.py      # DistilBERT MC Dropout logic
-│   ├── clarification_engine.py   # Shannon entropy info-gain logic
-│   ├── sla_predictor.py          # XGBoost SLA modeling
-│   ├── feature_extraction.py     # NLP Feature engineering
-│   ├── churn_extractor.py        # Sentiment & Churn analysis
-│   ├── train_router.py           # DistilBERT training script
-│   ├── train_sla.py              # XGBoost training script
-│   └── evaluate.py               # Evaluation & benchmark suite
-├── dashboard/
-│   └── web/                      # Interactive Frontend HTML/CSS/JS
-│       ├── index.html            # Main UI
-│       ├── app.js                # Frontend logic & API calls
-│       └── style.css             # Glassmorphism styling
-├── data/
-│   └── clarification_bank.json   # 47 Question templates
-├── models/                       # Stored model weights (ignored in git)
-├── tests/                        # Pytest suite
-├── Dockerfile                    # Containerization instructions
-├── requirements.txt              # Python dependencies
-└── README.md                     # You are here
+55 passed
 ```
 
----
+The test suite also passes in a clean-checkout simulation without local model files, matching the GitHub Actions environment.
 
-## 👤 Author
+For demo QA, add new edge-case tickets to `DEMO_TICKETS` in `tests/test_demo_consistency.py`. That test checks that multi-route labels match the probability chart and non-neutral sentiment has visible evidence.
 
-**Asmitha** · BSc Data Science · 2026
+## Docker
 
-Part of the three-project portfolio arc:
-1. **OPTI-FAB** → Manufacturing edge AI with confidence gating
-2. **IncidentMind** → RL-based incident response with ambiguity awareness
-3. **SupportMind** → NLP ticket routing with MC Dropout uncertainty
+```bash
+docker build -t supportmind .
+docker run -p 7860:7860 supportmind
+```
 
-> *"I spent the last year building systems that know what they don't know."*
+## Portfolio Positioning
 
+SupportMind is built as a hiring-facing AI engineering project for support platforms such as Zoho Desk, Freshworks, Zendesk, Intercom, Salesforce Service Cloud, and similar customer operations products.
+
+The project demonstrates:
+
+- ML system design beyond a basic classifier.
+- Practical uncertainty handling.
+- FastAPI service design.
+- Frontend demo experience.
+- CI-tested behavior.
+- Honest benchmark communication.
+
+## Author
+
+**Asmitha**
+BSc Data Science, 2026
+
+Portfolio theme: building AI systems that know when they should not guess.

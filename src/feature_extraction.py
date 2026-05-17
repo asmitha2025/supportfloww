@@ -123,6 +123,12 @@ POSITIVE_SENTIMENT_SIGNALS = [
     ),
 ]
 
+LEXICON_SENTIMENT_CUES = [
+    'wrong', 'broken', 'error', 'failed', 'failing', 'issue', 'problem',
+    'invalid', 'locked out', 'cannot access', "can't access", 'not working',
+    'frustrated', 'disappointed', 'difficult', 'unacceptable',
+]
+
 COMPLEXITY_KEYWORDS = [
     'integration', 'migration', 'sso', 'bulk', 'setup', 'configure', 'synchronization',
     'permissions', 'architecture', 'implementation', 'customization',
@@ -217,6 +223,10 @@ class FeatureExtractor:
             evidence.append('error_sentiment: invalid')
 
         score = max(min(score + adjustment + positive_adjustment, 1.0), -1.0)
+
+        if raw_score <= -0.20 and not evidence:
+            lexicon_hits = [cue for cue in LEXICON_SENTIMENT_CUES if cue in tl]
+            evidence.extend([f'lexicon_sentiment: {cue}' for cue in lexicon_hits[:3]])
 
         if score <= -0.55 or any(e.startswith(('frustration', 'trust_risk')) for e in evidence):
             label = 'frustrated'

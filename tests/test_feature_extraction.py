@@ -34,6 +34,16 @@ def test_detects_polite_negative_sentiment():
     )
 
 
+def test_vader_negative_score_has_explainable_evidence():
+    extractor = FeatureExtractor()
+    features = extractor.extract(
+        "The invoice is wrong, and also SSO login is broken for our managers."
+    )
+
+    assert features['sentiment_score'] < -0.2
+    assert features['sentiment_evidence']
+
+
 def test_no_rush_deescalates_urgency():
     extractor = FeatureExtractor()
     features = extractor.extract(

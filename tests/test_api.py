@@ -89,6 +89,8 @@ def test_invoice_and_sso_login_detects_multi_intent():
     assert data["primary_queue"] == "billing"
     assert data["secondary_queue"] == "account_management"
     assert data["is_multi_intent"] is True
+    sorted_probs = sorted(data["all_probs"].items(), key=lambda item: item[1], reverse=True)
+    assert [category for category, _ in sorted_probs[:2]] == ["billing", "account_management"]
 
 def test_invoice_email_update_does_not_route_to_onboarding():
     payload = {

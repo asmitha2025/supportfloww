@@ -30,8 +30,8 @@
             <a href="#api-section" class="nav-link">API</a>
         </div>
         <div class="nav-actions">
-            <button class="btn-ghost" style="padding: 8px 16px; font-size: 13px;">Demo Mode</button>
-            <button class="btn-primary" style="padding: 8px 20px; font-size: 13px;">Get Started</button>
+            <a href="#demo" class="btn-ghost" style="padding: 8px 16px; font-size: 13px; text-decoration: none;">Demo Mode</a>
+            <a href="/docs" class="btn-primary" style="padding: 8px 20px; font-size: 13px; text-decoration: none;">API Docs</a>
         </div>
     </nav>
 
@@ -41,19 +41,20 @@
             <div class="hero-content">
                 <div class="hero-eyebrow">
                     <span class="status-dot"></span>
-                    Uncertainty-Aware Neural Engine
+                    B2B SaaS Support Routing Demo
                 </div>
                 <h1 class="hero-title">
-                    AI that <span class="gradient-text italic">knows</span> when it doesn't know
+                    Support AI that <span class="gradient-text italic">knows</span> when to ask
                 </h1>
                 <p class="hero-subtitle">
-                    MC Dropout uncertainty quantification on DistilBERT. Three-tier routing: 
-                    <strong>Route</strong> · <strong>Clarify</strong> · <strong>Escalate</strong>. 
-                    Optimize support workflows with surgical precision.
+                    Confidence-gated ticket routing with uncertainty scoring, multi-intent detection,
+                    and SLA risk signals. Three-tier routing:
+                    <strong>Route</strong> &middot; <strong>Clarify</strong> &middot; <strong>Escalate</strong>.
+                    Built to reduce unsafe auto-routing on ambiguous customer tickets.
                 </p>
                 <div class="hero-actions">
                     <a href="#demo" class="btn btn-primary">
-                        Try Live Demo 
+                        Try Live Demo
                         <span class="material-symbols-outlined btn-icon">arrow_forward</span>
                     </a>
                     <a href="#architecture" class="btn btn-ghost">View Architecture</a>
@@ -155,15 +156,13 @@
                     <button class="preset-btn" data-text="Could you please help resolve this? This is becoming difficult for our onboarding team and we are disappointed with repeated delays.">Polite Risk</button>
                     <button class="preset-btn" data-text="No rush, but can you tell me how to update the invoice email before tomorrow?">No Rush</button>
                 </div>
-                <button id="route-btn" class="btn btn-primary btn-full" onclick="routeTicket()">
-                    ⚡ Route Ticket
-                </button>
+                <button id="route-btn" class="btn btn-primary btn-full" onclick="routeTicket()">Route Ticket</button>
             </div>
 
             <div class="demo-results-panel glass-panel" id="results-panel">
                 <div class="result-placeholder" id="result-placeholder">
-                    <div class="placeholder-icon">🎯</div>
-                    <p>Enter a ticket and click "Route Ticket" to see the confidence-gated decision</p>
+                    <div class="placeholder-icon">AI</div>
+                    <p>Enter a ticket to see whether SupportMind routes, clarifies, or escalates.</p>
                 </div>
 
                 <div class="result-content" id="result-content" style="display:none">
@@ -208,7 +207,7 @@
 
                     <!-- Clarification Question (if action=clarify) -->
                     <div class="clarification-box" id="clarification-box" style="display:none">
-                        <div class="clarify-header">💡 Suggested Clarification Question</div>
+                        <div class="clarify-header">Clarification: Suggested Clarification Question</div>
                         <div class="clarify-question" id="clarify-question"></div>
                         <div class="clarify-options" id="clarify-options"></div>
                         <div class="clarify-gain" id="clarify-gain"></div>
@@ -221,22 +220,22 @@
                                 SLA Breach Risk
                                 <span style="font-size: 9px; color: var(--yellow); margin-top: 2px;">*Demo fallback: 4.5 hrs avg</span>
                             </div>
-                            <div class="signal-value" id="sla-value">—</div>
+                            <div class="signal-value" id="sla-value">-</div>
                             <div class="signal-bar"><div class="signal-fill" id="sla-fill"></div></div>
                         </div>
                         <div class="signal-card">
                             <div class="signal-label">Sentiment</div>
-                            <div class="signal-value" id="sentiment-value">—</div>
-                            <div class="signal-subvalue" id="sentiment-score">—</div>
+                            <div class="signal-value" id="sentiment-value">-</div>
+                            <div class="signal-subvalue" id="sentiment-score">-</div>
                         </div>
                         <div class="signal-card">
                             <div class="signal-label">Urgency</div>
-                            <div class="signal-value" id="urgency-value">—</div>
-                            <div class="signal-subvalue" id="urgency-score">—</div>
+                            <div class="signal-value" id="urgency-value">-</div>
+                            <div class="signal-subvalue" id="urgency-score">-</div>
                         </div>
                         <div class="signal-card">
                             <div class="signal-label">Latency</div>
-                            <div class="signal-value" id="latency-value">—</div>
+                            <div class="signal-value" id="latency-value">-</div>
                         </div>
                     </div>
 
@@ -300,7 +299,7 @@
                 </div>
                 <p class="stage-desc">768-dim embedding + sentiment + urgency</p>
             </div>
-            <div class="arch-arrow">→</div>
+            <div class="arch-arrow">-></div>
             <div class="arch-stage glass-panel stage-highlight">
                 <div class="stage-number">2</div>
                 <div class="stage-title">Confidence-Gated Router</div>
@@ -310,7 +309,7 @@
                 </div>
                 <p class="stage-desc">3-tier decision gate (20 stochastic passes)</p>
             </div>
-            <div class="arch-arrow">→</div>
+            <div class="arch-arrow">-></div>
             <div class="arch-stage glass-panel">
                 <div class="stage-number">3</div>
                 <div class="stage-title">Intelligence Layer</div>
@@ -324,7 +323,7 @@
 
         <!-- MC Dropout Visualization -->
         <div class="mc-dropout-viz glass-panel">
-            <h3 class="viz-title">Monte Carlo Dropout — 20 Stochastic Forward Passes</h3>
+            <h3 class="viz-title">Monte Carlo Dropout - 20 Stochastic Forward Passes</h3>
             <p class="viz-desc">Each pass randomly deactivates different neurons, producing a distribution of predictions instead of a single overconfident output.</p>
             <div class="dropout-grid" id="dropout-grid"></div>
             <div class="dropout-legend">
@@ -446,14 +445,14 @@
                     <span style="font-size: 11px; font-weight: 600; color: #22c55e; text-transform: uppercase; letter-spacing: 0.5px;">Live Telemetry</span>
                 </div>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="insight-card glass-panel" style="padding: 20px; background: rgba(255,255,255,0.02);">
                     <div class="insight-label" style="font-size: 11px; text-transform: uppercase; color: var(--primary); margin-bottom: 12px; font-weight: 600;">Active Model Engine</div>
                     <div id="live-model" class="insight-value" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #fff;">Syncing...</div>
-                    <div style="margin-top: 12px; font-size: 10px; color: var(--green);">● GPU Optimized Fallback</div>
+                    <div style="margin-top: 12px; font-size: 10px; color: var(--green);">Status: GPU Optimized Fallback</div>
                 </div>
-                
+
                 <div class="insight-card glass-panel" style="padding: 20px; background: rgba(255,255,255,0.02); grid-column: span 2;">
                     <div class="insight-label" style="font-size: 11px; text-transform: uppercase; color: var(--primary); margin-bottom: 12px; font-weight: 600;">Routing Efficiency Distribution</div>
                     <div id="live-dist" class="insight-value">
@@ -469,7 +468,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="insight-card glass-panel" style="padding: 20px; background: rgba(255,255,255,0.02); text-align: right;">
                     <div class="insight-label" style="font-size: 11px; text-transform: uppercase; color: var(--primary); margin-bottom: 4px; font-weight: 600;">Lifetime Triage</div>
                     <div id="live-total" class="insight-value" style="font-size: 32px; font-weight: 800; color: #fff; font-family: 'Inter', sans-serif;">0</div>
@@ -485,13 +484,13 @@
         <div class="section-header">
             <span class="section-badge">Developer</span>
             <h2 class="section-title">API Reference</h2>
-            <p class="section-desc">RESTful API with FastAPI — complete documentation at <code>/docs</code></p>
+            <p class="section-desc">RESTful API with FastAPI - complete documentation at <code>/docs</code></p>
         </div>
         <div class="api-grid">
             <div class="api-card">
                 <div class="api-method post">POST</div>
                 <code class="api-path">/route</code>
-                <p class="api-desc">Main routing endpoint — returns 3-tier confidence-gated decision</p>
+                <p class="api-desc">Main routing endpoint - returns 3-tier confidence-gated decision</p>
             </div>
             <div class="api-card">
                 <div class="api-method post">POST</div>
@@ -526,7 +525,7 @@
         <div class="footer-content" style="max-width: 1200px; display: flex; justify-content: space-between; align-items: center;">
             <div style="text-align: left;">
                 <div class="footer-brand" style="font-size: 24px; color: #fff;">AetherFlow</div>
-                <div class="footer-author">© 2026 AetherFlow Technologies. Intelligence through Clarity.</div>
+                <div class="footer-author">(c) 2026 AetherFlow Technologies. Intelligence through Clarity.</div>
             </div>
             <div class="footer-tech" style="display: flex; gap: 24px;">
                 <span>Privacy Policy</span>
