@@ -1,6 +1,6 @@
 ---
 title: SupportMind
-emoji: brain
+emoji: 🧠
 colorFrom: blue
 colorTo: indigo
 sdk: docker
