@@ -202,18 +202,6 @@ docker build -t supportmind .
 docker run -p 7860:7860 supportmind
 ```
 
-## Portfolio Positioning
-
-SupportMind is built as a hiring-facing AI engineering project for support platforms such as Zoho Desk, Freshworks, Zendesk, Intercom, Salesforce Service Cloud, and similar customer operations products.
-
-The project demonstrates:
-
-- ML system design beyond a basic classifier.
-- Practical uncertainty handling.
-- FastAPI service design.
-- Frontend demo experience.
-- CI-tested behavior.
-- Honest benchmark communication.
 
 ## Author
 
