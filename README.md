@@ -207,5 +207,4 @@ docker run -p 7860:7860 supportmind
 
 **Asmitha**
 BSc Data Science, 2026
-
-Portfolio theme: building AI systems that know when they should not guess.
+building AI systems that know when they should not guess.
